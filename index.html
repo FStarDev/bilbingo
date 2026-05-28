@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thin Client Calculator</title>
+  </head>
+  <body>
+    <div id="startup-error" hidden role="alert" style="margin: 12px; padding: 10px 12px; border: 1px solid #b54747; border-radius: 8px; background: #fff1f1; color: #7a1f1f; font-family: Arial, sans-serif;">
+      App failed to start. Open this project through a local web server (for example: npm run dev) instead of opening the HTML file directly.
+    </div>
+    <main class="app-shell">
+      <section class="card">
+        <h1>Kiosk Bilbingo</h1>
+        <p>Välj antal för varje produkt och se totalsumman direkt.</p>
+
+        <div class="shop-list" id="shop-list" aria-live="polite">
+          <div class="item-row">
+            <div class="item-meta">
+              <div class="item-name">Bingohäfte</div>
+              <div class="item-price">50 kr</div>
+            </div>
+            <div class="qty-control">
+              <button class="qty-btn" data-action="decrement" data-item-id="bingohafte" aria-label="Minska Bingohäfte">-</button>
+              <span class="qty-value" id="qty-bingohafte">0</span>
+              <button class="qty-btn" data-action="increment" data-item-id="bingohafte" aria-label="Öka Bingohäfte">+</button>
+            </div>
+          </div>
+
+          <div class="item-row">
+            <div class="item-meta">
+              <div class="item-name">Freeplay</div>
+              <div class="item-price">20 kr</div>
+            </div>
+            <div class="qty-control">
+              <button class="qty-btn" data-action="decrement" data-item-id="freeplay" aria-label="Minska Freeplay">-</button>
+              <span class="qty-value" id="qty-freeplay">0</span>
+              <button class="qty-btn" data-action="increment" data-item-id="freeplay" aria-label="Öka Freeplay">+</button>
+            </div>
+          </div>
+
+          <div class="item-row">
+            <div class="item-meta">
+              <div class="item-name">Storbingo</div>
+              <div class="item-price">20 kr</div>
+            </div>
+            <div class="qty-control">
+              <button class="qty-btn" data-action="decrement" data-item-id="storbingo" aria-label="Minska Storbingo">-</button>
+              <span class="qty-value" id="qty-storbingo">0</span>
+              <button class="qty-btn" data-action="increment" data-item-id="storbingo" aria-label="Öka Storbingo">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary" id="summary">
+          <div class="summary-row">
+            <span>Antal varor</span>
+            <strong id="total-items">0</strong>
+          </div>
+          <div class="summary-row total">
+            <span>Att betala</span>
+            <strong id="total-price">0 kr</strong>
+          </div>
+        </div>
+
+        <button class="reset-btn" id="reset-btn" type="button">Reset</button>
+      </section>
+    </main>
+    <script>
+      window.__THIN_CLIENT_BOOTED = false;
+      window.addEventListener("load", () => {
+        setTimeout(() => {
+          if (window.__THIN_CLIENT_BOOTED) {
+            return;
+          }
+          const errorBox = document.getElementById("startup-error");
+          if (errorBox) {
+            errorBox.hidden = false;
+          }
+        }, 1200);
+      });
+    </script>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
