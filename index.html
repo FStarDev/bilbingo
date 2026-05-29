@@ -10,13 +10,22 @@
       App failed to start. Open this project through a local web server (for example: npm run dev) instead of opening the HTML file directly.
     </div>
     <main class="app-shell">
-      <section class="card">
+      <section class="card" style="position:relative;">
+        <div class="top-controls" style="position:absolute;top:12px;right:12px;display:flex;align-items:center;gap:8px;">
+          <button id="cog-btn" class="cog-btn" aria-expanded="false" aria-label="Visa meny">⚙</button>
+          <div class="top-nav" id="mode-buttons" hidden>
+            <button id="view-shop-btn" class="nav-btn">Butik</button>
+            <button id="view-stats-btn" class="nav-btn">Statistik</button>
+            <button id="view-logs-btn" class="nav-btn">Säljlogg</button>
+          </div>
+        </div>
         <h1>Kiosk Bilbingo</h1>
         <p>Välj antal för varje produkt</p>
-
+       
         <div class="shop-list" id="shop-list" aria-live="polite">
           
           <div class="header-row">
+            <button id="cancel-sale-btn" class="cancel-btn" type="button" aria-label="Avbryt kundköp">🗑</button>
             <div class="item-meta">
               <div class="header-name">En av varje</div>
             </div>
@@ -27,13 +36,25 @@
 
           <div class="item-row">
             <div class="item-meta">
-              <div class="item-name">Bingohäfte</div>
+              <div class="item-name">Storbingo</div>
               <div class="item-price">50 kr</div>
             </div>
             <div class="qty-control">
-              <button class="qty-btn" data-action="decrement" data-item-id="bingohafte" aria-label="Minska Bingohäfte">-</button>
-              <span class="qty-value" id="qty-bingohafte">0</span>
-              <button class="qty-btn" data-action="increment" data-item-id="bingohafte" aria-label="Öka Bingohäfte">+</button>
+              <button class="qty-btn" data-action="decrement" data-item-id="storbingo" aria-label="Minska Storbingo">-</button>
+              <span class="qty-value" id="qty-storbingo">0</span>
+              <button class="qty-btn" data-action="increment" data-item-id="storbingo" aria-label="Öka Storbingo">+</button>
+            </div>
+          </div>
+
+          <div class="item-row">
+            <div class="item-meta">
+              <div class="item-name">Rövaren</div>
+              <div class="item-price">20 kr</div>
+            </div>
+            <div class="qty-control">
+              <button class="qty-btn" data-action="decrement" data-item-id="rovaren" aria-label="Minska Rövaren">-</button>
+              <span class="qty-value" id="qty-rovaren">0</span>
+              <button class="qty-btn" data-action="increment" data-item-id="rovaren" aria-label="Öka Rövaren">+</button>
             </div>
           </div>
 
@@ -51,13 +72,13 @@
 
           <div class="item-row">
             <div class="item-meta">
-              <div class="item-name">Storbingo</div>
+              <div class="item-name">FiftyFifty</div>
               <div class="item-price">20 kr</div>
             </div>
             <div class="qty-control">
-              <button class="qty-btn" data-action="decrement" data-item-id="storbingo" aria-label="Minska Storbingo">-</button>
-              <span class="qty-value" id="qty-storbingo">0</span>
-              <button class="qty-btn" data-action="increment" data-item-id="storbingo" aria-label="Öka Storbingo">+</button>
+              <button class="qty-btn" data-action="decrement" data-item-id="fiftyfifty" aria-label="Minska FiftyFifty">-</button>
+              <span class="qty-value" id="qty-fiftyfifty">0</span>
+              <button class="qty-btn" data-action="increment" data-item-id="fiftyfifty" aria-label="Öka FiftyFifty">+</button>
             </div>
           </div>
         </div>
@@ -73,7 +94,28 @@
           </div>
         </div>
 
-        <button class="reset-btn" id="reset-btn" type="button">Ny kund</button>
+        <button class="reset-btn" id="reset-btn" type="button">Nästa kund</button>
+
+        <section id="stats-page" hidden style="margin-top:18px;">
+          <h2>Statistik</h2>
+          <div class="summary-row">
+            <span>Totalt antal kunder</span>
+            <strong id="total-customers">0</strong>
+          </div>
+          <div id="product-totals" style="margin-top:10px"></div>
+          <div class="summary-row total" style="margin-top:8px">
+            <span>Totalt sålt</span>
+            <strong id="total-revenue">0 kr</strong>
+          </div>
+        </section>
+
+        <section id="logs-page" hidden style="margin-top:18px;">
+          <div class="logs-header">
+            <h2>Säljlogg</h2>
+            <button id="clear-log-btn" class="clear-log-btn">Töm loggen</button>
+          </div>
+          <div id="logs-list" style="margin-top:8px"></div>
+        </section>
       </section>
     </main>
     <script>
