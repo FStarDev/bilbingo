@@ -15,6 +15,16 @@
         <p>Välj antal för varje produkt och se totalsumman direkt.</p>
 
         <div class="shop-list" id="shop-list" aria-live="polite">
+          
+          <div class="header-row">
+            <div class="item-meta">
+              <div class="header-name">En av varje</div>
+            </div>
+            <div class="qty-control">
+              <button class="addall-btn" data-action="incrementAll" data-item-id="all" aria-label="En av varje">+</button>
+            </div>
+          </div>
+
           <div class="item-row">
             <div class="item-meta">
               <div class="item-name">Bingohäfte</div>
@@ -63,7 +73,7 @@
           </div>
         </div>
 
-        <button class="reset-btn" id="reset-btn" type="button">Reset</button>
+        <button class="reset-btn" id="reset-btn" type="button">Ny kund</button>
       </section>
     </main>
     <script>

@@ -16,13 +16,14 @@ type ShopItem = {
 const items: ShopItem[] = [
   { id: "bingohafte", name: "Bingohafte", price: 50, quantity: 0 },
   { id: "freeplay", name: "Freeplay", price: 20, quantity: 0 },
-  { id: "storbingo", name: "Storbingo", price: 20, quantity: 0 },
+  { id: "storbingo", name: "Storbingo", price: 20, quantity: 0 }
 ];
 
 const shopList = document.querySelector<HTMLElement>("#shop-list");
 const totalItemsEl = document.querySelector<HTMLElement>("#total-items");
 const totalPriceEl = document.querySelector<HTMLElement>("#total-price");
 const resetButton = document.querySelector<HTMLButtonElement>("#reset-btn");
+const addAllButton = document.querySelector<HTMLButtonElement>(".addall-btn");
 
 if (!shopList || !totalItemsEl || !totalPriceEl || !resetButton) {
   throw new Error("Expected shop elements are missing from the page.");
@@ -32,6 +33,7 @@ const shopListEl = shopList;
 const totalItemsValueEl = totalItemsEl;
 const totalPriceValueEl = totalPriceEl;
 const resetButtonEl = resetButton;
+const addAllButtonEl = addAllButton;
 
 function findItem(id: ItemId): ShopItem {
   const item = items.find((entry) => entry.id === id);
@@ -86,6 +88,13 @@ shopListEl.addEventListener("click", (event) => {
 resetButtonEl.addEventListener("click", () => {
   items.forEach((item) => {
     item.quantity = 0;
+  });
+  render();
+});
+
+addAllButtonEl?.addEventListener("click", () => {
+  items.forEach((item) => {
+    item.quantity += 1;
   });
   render();
 });
