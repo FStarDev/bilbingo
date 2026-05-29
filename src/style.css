@@ -3,8 +3,8 @@
   --bg-2: #e8e2d9;
   --card: rgba(255, 255, 255, 0.86);
   --text: #2e281f;
-  --accent: #ecad4d;
-  --accent-hover: #fcb853;
+  --accent: #f8a82f;
+  --accent-hover: #fa8601;
   --border: #000000;
   --shadow: rgba(44, 33, 10, 0.15);
 }
@@ -85,12 +85,22 @@ p {
   border-radius: 9px;
   background: #faebe2;
   color: #b4332b;
-  font-size: 2.0rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   cursor: pointer;
+}
+
+.cancel-btn .icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+  overflow: visible;
+}
+
+.cancel-btn svg {
+  overflow: visible;
 }
 
 .cancel-btn:hover {
@@ -159,9 +169,12 @@ p {
   transition: transform 150ms ease, background-color 150ms ease;
 }
 
+.addall-btn:hover {
+  background: var(--accent-hover);
+}
+
 .qty-btn:hover {
   background: var(--accent-hover);
-  transform: translateY(-1px);
 }
 
 .qty-value {
@@ -200,8 +213,8 @@ p {
   padding: 20px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #c6f3a8;
-  color: #423420;
+  background: #b0daa6;
+  color: #2b312c;
   cursor: pointer;
   font-weight: 700;
   transition: transform 150ms ease, background-color 150ms ease;
@@ -209,8 +222,7 @@ p {
 }
 
 .reset-btn:hover {
-  background: #f1ebe1;
-  transform: translateY(-1px);
+  background: #5ec754;
 }
 
 .top-nav .nav-btn {
@@ -305,12 +317,17 @@ p {
   border: 1px solid var(--border);
   background: var(--card);
   cursor: pointer;
-  font-weight: 700;
-  font-size: 1.3rem;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.cog-btn .icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  overflow: visible;
 }
 .top-nav {
   display: flex;

@@ -12,7 +12,11 @@
     <main class="app-shell">
       <section class="card" style="position:relative;">
         <div class="top-controls" style="position:absolute;top:12px;right:12px;display:flex;align-items:center;gap:8px;">
-          <button id="cog-btn" class="cog-btn" aria-expanded="false" aria-label="Visa meny">⚙</button>
+          <button id="cog-btn" class="cog-btn" aria-expanded="false" aria-label="Visa meny">
+            <svg class="icon icon-cog" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+              <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.5 3.5a7 7 0 0 0-.5-2.5l2.1-1.7-2-3.5-2.5 1a6.9 6.9 0 0 0-2-1.2L13 2h-2l-.6 2.1a6.9 6.9 0 0 0-2 1.2l-2.5-1-2 3.5 2.1 1.7A7 7 0 0 0 3.5 12a7 7 0 0 0 .5 2.5L1.9 16.2l2 3.5 2.5-1a6.9 6.9 0 0 0 2 1.2L11 22h2l.6-2.1a6.9 6.9 0 0 0 2-1.2l2.5 1 2-3.5-2.1-1.7c.3-.8.4-1.6.4-2.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
           <div class="top-nav" id="mode-buttons" hidden>
             <button id="view-shop-btn" class="nav-btn">Butik</button>
             <button id="view-stats-btn" class="nav-btn">Statistik</button>
@@ -25,7 +29,15 @@
         <div class="shop-list" id="shop-list" aria-live="polite">
           
           <div class="header-row">
-            <button id="cancel-sale-btn" class="cancel-btn" type="button" aria-label="Avbryt kundköp">🗑</button>
+            <button id="cancel-sale-btn" class="cancel-btn" type="button" aria-label="Avbryt kundköp">
+              <svg class="icon icon-trash" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+                <path d="M3 6h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M19 6l-1 14H6L5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M10 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
             <div class="item-meta">
               <div class="header-name">En av varje</div>
             </div>
