@@ -33,7 +33,6 @@ body {
 
 .card {
   width: min(100%, 560px);
-  max-height: calc(100vh - 48px);
   padding: 28px;
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -41,14 +40,6 @@ body {
   background: var(--card);
   box-shadow: 0 18px 45px var(--shadow);
   animation: rise 450ms ease-out;
-  display: flex;
-  flex-direction: column;
-}
-
-.shop-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
 }
 
 h1 {
@@ -360,21 +351,10 @@ p {
 @media (max-width: 560px) {
   .card {
     padding: 18px;
-    max-height: calc(100vh - 24px);
   }
 
   .item-row {
     gap: 12px;
     align-items: flex-start;
-  }
-
-  .summary,
-  .reset-btn {
-    margin-top: 12px;
-  }
-
-  .reset-btn {
-    padding: 16px 10px;
-    font-size: 120%;
   }
 }
