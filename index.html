@@ -63,15 +63,18 @@
           <div class="top-nav" id="mode-buttons" hidden>
             <button id="view-shop-btn" class="nav-btn">Butik</button>
             <button id="view-stats-btn" class="nav-btn">Statistik</button>
+            <button id="view-connect-btn" class="nav-btn">QR-lank</button>
             <button id="view-admin-stats-btn" class="nav-btn">Adminstatistik</button>
             <button id="view-logs-btn" class="nav-btn">Säljlogg</button>
             <button id="change-session-btn" class="nav-btn">Byt pass</button>
           </div>
         </div>
         <h1>Kiosk Bilbingo</h1>
+        <div class="session-meta">
+          <p id="active-session-label" class="info-note"></p>
+          <span id="sync-status" aria-hidden="true"></span>
+        </div>
         <p id="shop-intro-text">Välj antal för varje produkt</p>
-        <p id="active-session-label" class="info-note"></p>
-        <p id="sync-status" class="info-note"></p>
 
         <section id="shop-section">
        
@@ -88,10 +91,10 @@
               </svg>
             </button>
             <div class="item-meta">
-              <div class="header-name">En av varje</div>
+              <div class="header-name">Lägg till en av varje</div>
             </div>
             <div class="qty-control">
-              <button class="addall-btn" data-action="incrementAll" data-item-id="all" aria-label="En av varje">+</button>
+              <button class="addall-btn" data-action="incrementAll" data-item-id="all" aria-label="Lägg till en av varje">+</button>
             </div>
           </div>
 
@@ -197,14 +200,30 @@
           <div id="admin-cashier-breakdown"></div>
         </section>
 
+        <section id="connect-page" hidden style="margin-top:18px;">
+          <h2>Anslut med mobil</h2>
+          <p id="connect-status" class="info-note">Skanna QR-koden för att öppna kiosken i mobilen.</p>
+          <div class="connect-panel">
+            <canvas id="connect-qr" width="220" height="220" aria-label="QR-kod för anslutning"></canvas>
+            <div class="connect-panel-meta">
+              <div class="connect-label">Primär länk</div>
+              <a id="connect-primary-url" class="connect-primary-url" href="#" target="_blank" rel="noopener noreferrer">-</a>
+              <div class="connect-label">Alternativa länkar</div>
+              <div id="connect-alt-urls" class="connect-alt-urls"></div>
+              <button id="refresh-connect-btn" class="details-toggle-btn" type="button">Uppdatera QR</button>
+            </div>
+          </div>
+        </section>
+
         <section id="logs-page" hidden style="margin-top:18px;">
           <div class="logs-header">
-            <h2>Säljlogg</h2>
+            <h2 id="logs-title">Säljlogg</h2>
             <button id="clear-log-btn" class="clear-log-btn">Töm loggen</button>
           </div>
           <div id="logs-list" style="margin-top:8px"></div>
         </section>
       </section>
+      <div id="sale-toast" class="sale-toast" role="status" aria-live="polite" hidden></div>
       </section>
     </main>
     <script>

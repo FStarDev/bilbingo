@@ -1,4 +1,5 @@
 import "./style.css";
+import * as QRCode from "qrcode";
 
 declare global {
   interface Window {
@@ -91,6 +92,11 @@ type SalesLogResponse = {
   }>;
 };
 
+type ConnectInfoResponse = {
+  hostName: string;
+  urls: string[];
+};
+
 class ApiError extends Error {
   status: number;
 
@@ -113,6 +119,7 @@ const SESSION_KEY = "bilbingo-active-session";
 const OUTBOX_KEY = "bilbingo-sales-outbox";
 const SERVER_SALES_CACHE_KEY = "bilbingo-server-sales-cache";
 const API_BASE = `${window.location.protocol}//${window.location.hostname}:8787/api`;
+const CLIENT_SYNC_INTERVAL_MS = 5000;
 
 const shopListEl = document.querySelector<HTMLElement>("#shop-list");
 const totalItemsEl = document.querySelector<HTMLElement>("#total-items");
@@ -122,12 +129,14 @@ const addAllButtonEl = document.querySelector<HTMLButtonElement>(".addall-btn");
 
 const viewShopBtn = document.getElementById("view-shop-btn");
 const viewStatsBtn = document.getElementById("view-stats-btn");
+const viewConnectBtn = document.getElementById("view-connect-btn");
 const viewAdminStatsBtn = document.getElementById("view-admin-stats-btn");
 const viewLogsBtn = document.getElementById("view-logs-btn");
 const cogBtn = document.getElementById("cog-btn");
 const modeButtons = document.getElementById("mode-buttons");
 
 const statsPage = document.getElementById("stats-page");
+const connectPage = document.getElementById("connect-page");
 const adminStatsPage = document.getElementById("admin-stats-page");
 const logsPage = document.getElementById("logs-page");
 const shopSection = document.getElementById("shop-section");
@@ -142,6 +151,7 @@ const adminTotalCustomersEl = document.getElementById("admin-total-customers");
 const adminProductTotalsEl = document.getElementById("admin-product-totals");
 const adminTotalRevenueEl = document.getElementById("admin-total-revenue");
 const adminCashierBreakdownEl = document.getElementById("admin-cashier-breakdown");
+const logsTitleEl = document.getElementById("logs-title");
 
 const logsListEl = document.getElementById("logs-list");
 const clearLogBtn = document.getElementById("clear-log-btn") as HTMLButtonElement | null;
@@ -157,14 +167,23 @@ const startupAdminLoginBtn = document.querySelector<HTMLButtonElement>("#startup
 const currentSeasonWeekEl = document.getElementById("current-season-week");
 const activeSessionLabel = document.getElementById("active-session-label");
 const syncStatusEl = document.getElementById("sync-status");
+const connectStatusEl = document.getElementById("connect-status");
+const connectPrimaryUrlEl = document.getElementById("connect-primary-url") as HTMLAnchorElement | null;
+const connectAltUrlsEl = document.getElementById("connect-alt-urls");
+const connectQrCanvasEl = document.getElementById("connect-qr") as HTMLCanvasElement | null;
+const refreshConnectBtn = document.getElementById("refresh-connect-btn") as HTMLButtonElement | null;
+const saleToastEl = document.getElementById("sale-toast");
 const changeSessionBtn = document.getElementById("change-session-btn");
 const shopIntroTextEl = document.getElementById("shop-intro-text");
 
 let activeSession: SalesSession | null = null;
 let activeLogDetailId: string | null = null;
 let isSyncInFlight = false;
+let isAdminRefreshInFlight = false;
 let backendReachable = true;
 let adminCashierFilter: AdminCashierFilter = "all";
+let saleToastTimerId: number | null = null;
+let isConnectViewLoading = false;
 
 if (!shopListEl || !totalItemsEl || !totalPriceEl || !registerSaleBtn) {
   throw new Error("Expected shop elements are missing from the page.");
@@ -675,7 +694,7 @@ async function renderStats(): Promise<void> {
 
   const session = activeSession;
   const pendingStats = aggregateLogs(getPendingEntries().filter((entry) => matchesCurrentWeekAndCashier(entry, session)));
-  const baseContext = `Din statistik for sasong ${session.seasonYear} vecka ${session.seasonWeek}, kassa ${session.cashierNumber}.`;
+  const baseContext = `Din statistik for säsong ${session.seasonYear} vecka ${session.seasonWeek}, kassa ${session.cashierNumber}.`;
 
   try {
     const response = await apiRequest<CashierStatsResponse>(`/stats/cashier/current?cashierNumber=${session.cashierNumber}`);
@@ -706,7 +725,18 @@ function clearAdminViews(): void {
   if (adminProductTotalsEl) adminProductTotalsEl.innerHTML = "";
   if (adminTotalRevenueEl) adminTotalRevenueEl.textContent = "0 kr";
   if (adminCashierBreakdownEl) adminCashierBreakdownEl.innerHTML = "";
+  if (logsTitleEl) logsTitleEl.textContent = "Säljlogg - Alla kassor";
   if (logsListEl) logsListEl.innerHTML = "";
+}
+
+function renderLogsTitle(): void {
+  if (!logsTitleEl) {
+    return;
+  }
+
+  logsTitleEl.textContent = adminCashierFilter === "all"
+    ? "Säljlogg - Alla kassor"
+    : `Säljlogg - Kassa ${adminCashierFilter}`;
 }
 
 function renderAdminStatsFromEntries(logs: SalesLogEntry[], breakdownLogs: SalesLogEntry[]): void {
@@ -801,6 +831,7 @@ function renderLogsFromEntries(logs: SalesLogEntry[]): void {
     return;
   }
 
+  renderLogsTitle();
   logsListEl.innerHTML = "";
   logs
     .slice()
@@ -813,7 +844,7 @@ function renderLogsFromEntries(logs: SalesLogEntry[]): void {
         <div class="log-summary">
           <div>
             <strong>${date}</strong>
-            <div>${entry.salespersonName} - Sasong ${entry.seasonYear} vecka ${entry.seasonWeek} - Kassa ${entry.cashierNumber}</div>
+            <div>${entry.salespersonName} - Säsong ${entry.seasonYear} vecka ${entry.seasonWeek} - Kassa ${entry.cashierNumber}</div>
             <div>${entry.totalItems} varor - ${entry.totalPrice} kr</div>
           </div>
           <button class="details-toggle-btn" type="button">Visa</button>
@@ -879,19 +910,29 @@ async function refreshAdminData(): Promise<void> {
     return;
   }
 
-  const session = activeSession;
-  const allLogs = await loadAdminLogs(session);
-  if (activeSession !== session) {
+  if (isAdminRefreshInFlight) {
     return;
   }
 
-  const scope = (adminScopeSelect?.value ?? "week") as StatsScope;
-  const scopeLogs = filterLogsForAdmin(allLogs, session.seasonYear, session.seasonWeek, scope, "all");
-  const visibleLogs = adminCashierFilter === "all"
-    ? scopeLogs
-    : scopeLogs.filter((entry) => entry.cashierNumber === Number(adminCashierFilter));
-  renderAdminStatsFromEntries(visibleLogs, scopeLogs);
-  renderLogsFromEntries(visibleLogs);
+  isAdminRefreshInFlight = true;
+
+  try {
+    const session = activeSession;
+    const allLogs = await loadAdminLogs(session);
+    if (activeSession !== session) {
+      return;
+    }
+
+    const scope = (adminScopeSelect?.value ?? "week") as StatsScope;
+    const scopeLogs = filterLogsForAdmin(allLogs, session.seasonYear, session.seasonWeek, scope, "all");
+    const visibleLogs = adminCashierFilter === "all"
+      ? scopeLogs
+      : scopeLogs.filter((entry) => entry.cashierNumber === Number(adminCashierFilter));
+    renderAdminStatsFromEntries(visibleLogs, scopeLogs);
+    renderLogsFromEntries(visibleLogs);
+  } finally {
+    isAdminRefreshInFlight = false;
+  }
 }
 
 function renderSessionLabel(): void {
@@ -903,10 +944,10 @@ function renderSessionLabel(): void {
     return;
   }
   if (activeSession.role === "admin") {
-    activeSessionLabel.textContent = `Admin - Sasong ${activeSession.seasonYear} vecka ${activeSession.seasonWeek}`;
+    activeSessionLabel.textContent = `Admin - Säsong ${activeSession.seasonYear} vecka ${activeSession.seasonWeek}`;
     return;
   }
-  activeSessionLabel.textContent = `Inloggad: ${activeSession.salespersonName} - Sasong ${activeSession.seasonYear} vecka ${activeSession.seasonWeek} - Kassa ${activeSession.cashierNumber}`;
+  activeSessionLabel.textContent = `Inloggad: ${activeSession.salespersonName} - Säsong ${activeSession.seasonYear} vecka ${activeSession.seasonWeek} - Kassa ${activeSession.cashierNumber}`;
 }
 
 function renderStartupPeriod(): void {
@@ -921,37 +962,172 @@ function renderSyncStatus(): void {
   if (!syncStatusEl) {
     return;
   }
-  if (!activeSession) {
+  if (!activeSession || activeSession.role !== "cashier") {
+    syncStatusEl.hidden = true;
     syncStatusEl.textContent = "";
+    syncStatusEl.removeAttribute("data-sync-state");
+    syncStatusEl.removeAttribute("title");
+    syncStatusEl.removeAttribute("aria-label");
     return;
   }
+
+  syncStatusEl.hidden = false;
+  syncStatusEl.textContent = "";
+  syncStatusEl.setAttribute("role", "status");
+  syncStatusEl.setAttribute("aria-live", "polite");
 
   const unsyncedCount = loadPendingSales().length;
+  let state: "ok" | "warn" | "error" = "ok";
+  let label = "Synkad";
+
   if (isSyncInFlight) {
-    syncStatusEl.textContent = `Synkroniserar ${unsyncedCount} osynkade forsaljningar...`;
-    return;
-  }
-  if (!backendReachable) {
-    syncStatusEl.textContent = unsyncedCount > 0
+    state = "warn";
+    label = `Synkroniserar ${unsyncedCount} osynkade forsaljningar...`;
+  } else if (!backendReachable) {
+    state = "error";
+    label = unsyncedCount > 0
       ? `Servern kan inte nas. ${unsyncedCount} forsaljningar sparade lokalt.`
       : "Servern kan inte nas. Visar lokalt cachelagrad data.";
+  } else if (unsyncedCount > 0) {
+    state = "warn";
+    label = `${unsyncedCount} forsaljningar vantar pa synk till servern.`;
+  }
+
+  syncStatusEl.setAttribute("data-sync-state", state);
+  syncStatusEl.setAttribute("title", label);
+  syncStatusEl.setAttribute("aria-label", label);
+}
+
+function getDefaultConnectUrl(): string {
+  return window.location.href;
+}
+
+function setConnectStatus(message: string): void {
+  if (connectStatusEl) {
+    connectStatusEl.textContent = message;
+  }
+}
+
+function updateConnectLinks(urls: string[], hostName: string): string {
+  const fallbackUrl = getDefaultConnectUrl();
+  const cleanedUrls = urls
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  const preferredUrl = cleanedUrls.find((entry) => !entry.includes("localhost") && !entry.includes("127.0.0.1"))
+    ?? cleanedUrls[0]
+    ?? fallbackUrl;
+
+  if (connectPrimaryUrlEl) {
+    connectPrimaryUrlEl.href = preferredUrl;
+    connectPrimaryUrlEl.textContent = preferredUrl;
+  }
+
+  if (connectAltUrlsEl) {
+    connectAltUrlsEl.innerHTML = "";
+
+    cleanedUrls
+      .filter((entry) => entry !== preferredUrl)
+      .forEach((entry) => {
+        const link = document.createElement("a");
+        link.className = "connect-alt-url";
+        link.href = entry;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = entry;
+        connectAltUrlsEl.appendChild(link);
+      });
+  }
+
+  setConnectStatus(`Server: ${hostName}. Skanna QR-koden eller öppna länken manuellt.`);
+  return preferredUrl;
+}
+
+async function fetchConnectInfo(): Promise<ConnectInfoResponse> {
+  const protocol = window.location.protocol.replace(":", "") || "http";
+  const defaultPort = protocol === "https" ? "443" : "80";
+  const port = window.location.port || defaultPort;
+  const path = window.location.pathname || "/";
+  const query = new URLSearchParams({ protocol, port, path });
+  const response = await apiRequest<ConnectInfoResponse>(`/server/connect-info?${query.toString()}`);
+  return response;
+}
+
+async function renderConnectPage(force = false): Promise<void> {
+  if (!connectQrCanvasEl || isConnectViewLoading) {
     return;
   }
 
-  syncStatusEl.textContent = unsyncedCount > 0
-    ? `${unsyncedCount} forsaljningar vantar pa synk till servern.`
-    : "Ansluten till servern. Allt synkat.";
+  if (!force && connectPage?.hidden !== false) {
+    return;
+  }
+
+  isConnectViewLoading = true;
+  setConnectStatus("Laddar anslutningslankar...");
+
+  try {
+    const response = await fetchConnectInfo();
+    const selectedUrl = updateConnectLinks(response.urls, response.hostName);
+
+    await QRCode.toCanvas(connectQrCanvasEl, selectedUrl, {
+      width: 220,
+      margin: 1,
+      color: {
+        dark: "#195637",
+        light: "#0000",
+      },
+    });
+  } catch {
+    const fallbackUrl = getDefaultConnectUrl();
+    updateConnectLinks([fallbackUrl], "lokal klient");
+    setConnectStatus("Kunde inte hämta serveradresser. Visar aktuell klientlänk.");
+    await QRCode.toCanvas(connectQrCanvasEl, fallbackUrl, {
+      width: 220,
+      margin: 1,
+      color: {
+        dark: "#195637",
+        light: "#0000",
+      },
+    });
+  } finally {
+    isConnectViewLoading = false;
+  }
+}
+
+function showSaleToast(totalPrice: number): void {
+  if (!saleToastEl) {
+    return;
+  }
+
+  saleToastEl.textContent = `Kop registrerat - ${totalPrice} kr`;
+  saleToastEl.hidden = false;
+  saleToastEl.classList.remove("is-visible");
+
+  // Force reflow so the animation can be replayed for rapid consecutive purchases.
+  void saleToastEl.offsetWidth;
+  saleToastEl.classList.add("is-visible");
+
+  if (saleToastTimerId !== null) {
+    window.clearTimeout(saleToastTimerId);
+  }
+
+  saleToastTimerId = window.setTimeout(() => {
+    saleToastEl.classList.remove("is-visible");
+    saleToastEl.hidden = true;
+    saleToastTimerId = null;
+  }, 2000);
 }
 
 function syncRoleAccessUI(): void {
   const isAdmin = activeSession?.role === "admin";
   if (viewShopBtn) viewShopBtn.hidden = isAdmin;
   if (viewStatsBtn) viewStatsBtn.hidden = isAdmin;
+  if (viewConnectBtn) viewConnectBtn.hidden = !isAdmin;
   if (viewAdminStatsBtn) viewAdminStatsBtn.hidden = !isAdmin;
   if (viewLogsBtn) viewLogsBtn.hidden = !isAdmin;
   if (clearLogBtn) clearLogBtn.hidden = !isAdmin;
   if (shopSection) shopSection.hidden = isAdmin;
   if (shopIntroTextEl) shopIntroTextEl.hidden = isAdmin;
+  if (syncStatusEl) syncStatusEl.hidden = isAdmin;
 }
 
 function syncSessionUI(): void {
@@ -963,11 +1139,12 @@ function syncSessionUI(): void {
   renderSyncStatus();
 }
 
-function showView(view: "shop" | "stats" | "admin" | "logs"): void {
+function showView(view: "shop" | "stats" | "connect" | "admin" | "logs"): void {
   if (shopSection) {
     shopSection.hidden = view !== "shop" || activeSession?.role === "admin";
   }
   if (statsPage) statsPage.hidden = view !== "stats";
+  if (connectPage) connectPage.hidden = view !== "connect";
   if (adminStatsPage) adminStatsPage.hidden = view !== "admin";
   if (logsPage) logsPage.hidden = view !== "logs";
 }
@@ -1124,6 +1301,16 @@ viewStatsBtn?.addEventListener("click", () => {
   if (cogBtn) cogBtn.setAttribute("aria-expanded", "false");
 });
 
+viewConnectBtn?.addEventListener("click", () => {
+  if (activeSession?.role !== "admin") {
+    return;
+  }
+  showView("connect");
+  void renderConnectPage(true);
+  if (modeButtons) modeButtons.hidden = true;
+  if (cogBtn) cogBtn.setAttribute("aria-expanded", "false");
+});
+
 viewAdminStatsBtn?.addEventListener("click", () => {
   if (activeSession?.role !== "admin") {
     return;
@@ -1219,6 +1406,7 @@ registerSaleBtn.addEventListener("click", () => {
   if (entry) {
     appendSalesLogEntry(entry);
     queueSaleForSync(entry);
+    showSaleToast(entry.totalPrice);
     void syncPendingSales();
   }
   resetCurrentSale();
@@ -1230,6 +1418,10 @@ registerSaleBtn.addEventListener("click", () => {
 
 adminScopeSelect?.addEventListener("change", () => {
   void refreshAdminData();
+});
+
+refreshConnectBtn?.addEventListener("click", () => {
+  void renderConnectPage(true);
 });
 
 addAllButtonEl?.addEventListener("click", () => {
@@ -1245,6 +1437,7 @@ window.addEventListener("online", () => {
   void syncPendingSales();
   void renderStats();
   void refreshAdminData();
+  void renderConnectPage(true);
 });
 
 window.addEventListener("offline", () => {
@@ -1254,7 +1447,10 @@ window.addEventListener("offline", () => {
 
 window.setInterval(() => {
   void syncPendingSales();
-}, 15000);
+  if (activeSession?.role === "admin") {
+    void refreshAdminData();
+  }
+}, CLIENT_SYNC_INTERVAL_MS);
 
 activeSession = loadActiveSession();
 setAdminCashierFilter("all", false);

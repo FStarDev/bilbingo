@@ -1,6 +1,8 @@
 import cors from "cors";
 import express, { type Request, type Response } from "express";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import { hostname, networkInterfaces } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { open, type Database } from "sqlite";
@@ -47,8 +49,11 @@ const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const backendRoot = resolve(__dirname, "..");
+const projectRoot = resolve(backendRoot, "..");
 const dataDir = resolve(backendRoot, "data");
 const databasePath = resolve(dataDir, "bilbingo.sqlite");
+const frontendDistDir = resolve(projectRoot, "dist");
+const frontendIndexPath = resolve(frontendDistDir, "index.html");
 
 function getIsoWeekPeriod(date: Date): Period {
   const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -140,6 +145,35 @@ function parseCashierNumber(raw: unknown): number | null {
   }
 
   return cashierNumber;
+}
+
+function getConnectUrls(protocol: "http" | "https", port: number, path: string): string[] {
+  const allInterfaces = networkInterfaces();
+  const hosts = new Set<string>();
+
+  hosts.add("localhost");
+  hosts.add(hostname().toLowerCase());
+
+  for (const interfaceEntries of Object.values(allInterfaces)) {
+    for (const details of interfaceEntries ?? []) {
+      if (!details || details.internal) {
+        continue;
+      }
+
+      if (details.family === "IPv4") {
+        hosts.add(details.address);
+      }
+    }
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : "/";
+  const hidePort = (protocol === "http" && port === 80) || (protocol === "https" && port === 443);
+  const portPart = hidePort ? "" : `:${port}`;
+
+  return Array.from(hosts)
+    .map((entry) => `/${entry}`)
+    .sort((left, right) => left.localeCompare(right, "sv"))
+    .map((entry) => `${protocol}:/${entry}${portPart}${normalizedPath}`);
 }
 
 function buildSalesWhere(scope: StatsScope, cashierNumber: number | null, period: Period): { whereSql: string; params: Array<number> } {
@@ -301,6 +335,22 @@ async function main() {
 
   app.get("/api/period/current", (_request: Request, response: Response) => {
     response.json(getCurrentPeriod());
+  });
+
+  app.get("/api/server/connect-info", (request: Request, response: Response) => {
+    const protocol = request.query.protocol === "https" ? "https" : "http";
+    const parsedPort = Number(request.query.port);
+    const port = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort <= 65535
+      ? parsedPort
+      : 5173;
+    const path = typeof request.query.path === "string" && request.query.path.length > 0
+      ? request.query.path
+      : "/";
+
+    response.json({
+      hostName: hostname(),
+      urls: getConnectUrls(protocol, port, path),
+    });
   });
 
   app.post("/api/auth/admin/login", async (request: Request, response: Response) => {
@@ -673,6 +723,14 @@ async function main() {
     response.status(204).end();
   });
 
+  if (existsSync(frontendIndexPath)) {
+    app.use(express.static(frontendDistDir));
+
+    app.get(/^\/(?!api(?:\/|$)).*/, (_request: Request, response: Response) => {
+      response.sendFile(frontendIndexPath);
+    });
+  }
+
   app.use((error: unknown, _request: Request, response: Response, _next: () => void) => {
     console.error(error);
     response.status(500).json({ error: "Internal server error." });
@@ -681,6 +739,9 @@ async function main() {
   const port = Number(process.env.PORT ?? DEFAULT_PORT);
   app.listen(port, () => {
     console.log(`Bilbingo backend listening on http://localhost:${port}`);
+    if (existsSync(frontendIndexPath)) {
+      console.log(`Bilbingo frontend served from ${frontendDistDir}`);
+    }
   });
 }
 
