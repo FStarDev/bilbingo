@@ -248,6 +248,16 @@ function getCurrentSeasonWeek(): { seasonYear: number; seasonWeek: number } {
   return getIsoWeekPeriod(new Date());
 }
 
+function createClientId(): string {
+  const cryptoWithRandomUuid = globalThis.crypto as Crypto & { randomUUID?: () => string };
+  if (cryptoWithRandomUuid?.randomUUID) {
+    return cryptoWithRandomUuid.randomUUID();
+  }
+
+  const randomPart = Math.random().toString(36).slice(2, 10);
+  return `id-${Date.now()}-${randomPart}`;
+}
+
 function normalizeSalesLogEntry(entry: Partial<SalesLogEntry>): SalesLogEntry {
   const timestamp = entry.timestamp ?? Date.now();
   const normalizedItems: SalesItem[] = Array.isArray(entry.items)
@@ -275,7 +285,7 @@ function normalizeSalesLogEntry(entry: Partial<SalesLogEntry>): SalesLogEntry {
     : [];
 
   return {
-    id: entry.id ?? crypto.randomUUID(),
+    id: entry.id ?? createClientId(),
     timestamp,
     salespersonName: entry.salespersonName ?? "Okand saljare",
     cashierNumber: entry.cashierNumber ?? 0,
@@ -583,7 +593,7 @@ function buildSaleEntryFromCurrent(): SalesLogEntry | null {
 
   const totalPrice = itemsSnapshot.reduce((sum, item) => sum + item.amount, 0);
   return {
-    id: crypto.randomUUID(),
+    id: createClientId(),
     timestamp: Date.now(),
     salespersonName: activeSession.salespersonName,
     cashierNumber: activeSession.cashierNumber,
