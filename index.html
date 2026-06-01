@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Roboto+Slab:wght@600;700&display=swap" rel="stylesheet">
     <title>Bilbingokiosken</title>
   </head>
   <body>
@@ -69,7 +73,10 @@
             <button id="change-session-btn" class="nav-btn">Byt pass</button>
           </div>
         </div>
-        <h1>Kiosk Bilbingo</h1>
+        <header class="brand">
+          <img class="brand-logo" src="https://az729104.cdn.laget.se/emblem_11607917.png" alt="Bilbingo logo" />
+          <h1>Bilbingo</h1>
+        </header>
         <div class="session-meta">
           <p id="active-session-label" class="info-note"></p>
           <span id="sync-status" aria-hidden="true"></span>
@@ -136,13 +143,13 @@
 
           <div class="item-row">
             <div class="item-meta">
-              <div class="item-name">FiftyFifty</div>
+              <div class="item-name">Fifty/Fifty</div>
               <div class="item-price">20 kr</div>
             </div>
             <div class="qty-control">
-              <button class="qty-btn" data-action="decrement" data-item-id="fiftyfifty" aria-label="Minska FiftyFifty">-</button>
+              <button class="qty-btn" data-action="decrement" data-item-id="fiftyfifty" aria-label="Minska Fifty/Fifty">-</button>
               <span class="qty-value" id="qty-fiftyfifty">0</span>
-              <button class="qty-btn" data-action="increment" data-item-id="fiftyfifty" aria-label="Öka FiftyFifty">+</button>
+              <button class="qty-btn" data-action="increment" data-item-id="fiftyfifty" aria-label="Öka Fifty/Fifty">+</button>
             </div>
           </div>
         </div>
