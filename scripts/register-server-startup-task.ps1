@@ -15,7 +15,19 @@ $command = "Set-Location -LiteralPath '$escapedRepoRoot'; npm run start:server"
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command \"$command\""
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $currentUserId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-$principal = New-ScheduledTaskPrincipal -UserId $currentUserId -LogonType InteractiveToken -RunLevel Highest
+$principal = $null
+foreach ($logonType in @("InteractiveTokenOrPassword", "InteractiveOrPassword", "InteractiveToken", "S4U")) {
+  try {
+    $principal = New-ScheduledTaskPrincipal -UserId $currentUserId -LogonType $logonType -RunLevel Highest
+    break
+  } catch {
+    # Try next supported enum value on this machine.
+  }
+}
+
+if ($null -eq $principal) {
+  throw "Could not create Scheduled Task principal with a supported logon type."
+}
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
 Register-ScheduledTask \
