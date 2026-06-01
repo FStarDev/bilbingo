@@ -5,11 +5,25 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "dev:frontend": "vite",
+    "dev:backend": "tsx watch backend/src/server.ts",
+    "build": "tsc && vite build && npm run build:backend",
+    "build:backend": "tsc -p backend/tsconfig.json",
+    "preview": "vite preview",
+    "start:backend": "node backend/dist/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.1",
     "typescript": "^5.9.2",
+    "tsx": "^4.20.6",
     "vite": "^6.3.5"
   }
 }
