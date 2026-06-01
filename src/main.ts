@@ -184,6 +184,7 @@ let backendReachable = true;
 let adminCashierFilter: AdminCashierFilter = "all";
 let saleToastTimerId: number | null = null;
 let isConnectViewLoading = false;
+let lastRegisterSaleActionAt = 0;
 
 if (!shopListEl || !totalItemsEl || !totalPriceEl || !registerSaleBtn) {
   throw new Error("Expected shop elements are missing from the page.");
@@ -1402,19 +1403,36 @@ shopListEl.addEventListener("click", (event) => {
 });
 
 registerSaleBtn.addEventListener("click", () => {
-  const entry = buildSaleEntryFromCurrent();
-  if (entry) {
-    appendSalesLogEntry(entry);
-    queueSaleForSync(entry);
-    showSaleToast(entry.totalPrice);
-    void syncPendingSales();
+  const now = Date.now();
+  if (now - lastRegisterSaleActionAt < 300) {
+    return;
   }
+  lastRegisterSaleActionAt = now;
+
+  if (!activeSession || activeSession.role !== "cashier" || !activeSession.cashierNumber) {
+    window.alert("Starta ett kassapass på den här enheten innan du använder Nästa kund.");
+    return;
+  }
+
+  const entry = buildSaleEntryFromCurrent();
+  if (!entry) {
+    window.alert("Lägg till minst en vara innan du trycker på Nästa kund.");
+    return;
+  }
+
+  appendSalesLogEntry(entry);
+  queueSaleForSync(entry);
+  showSaleToast(entry.totalPrice);
+  void syncPendingSales();
+
   resetCurrentSale();
   void renderStats();
-  if (activeSession?.role === "admin") {
-    void refreshAdminData();
-  }
 });
+
+registerSaleBtn.addEventListener("touchend", (event) => {
+  event.preventDefault();
+  registerSaleBtn.click();
+}, { passive: false });
 
 adminScopeSelect?.addEventListener("change", () => {
   void refreshAdminData();
