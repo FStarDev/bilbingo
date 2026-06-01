@@ -14,12 +14,15 @@ $command = "Set-Location -LiteralPath '$escapedRepoRoot'; npm run start:server"
 
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command \"$command\""
 $trigger = New-ScheduledTaskTrigger -AtLogOn
+$currentUserId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$principal = New-ScheduledTaskPrincipal -UserId $currentUserId -LogonType InteractiveToken -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
 Register-ScheduledTask \
   -TaskName $TaskName \
   -Action $action \
   -Trigger $trigger \
+  -Principal $principal \
   -Settings $settings \
   -Description "Start Bilbingo local server on logon" \
   -Force | Out-Null
