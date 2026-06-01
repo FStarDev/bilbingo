@@ -32,14 +32,17 @@ $trigger = New-ScheduledTaskTrigger -AtStartup
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
-Register-ScheduledTask \
-  -TaskName $TaskName \
-  -Action $action \
-  -Trigger $trigger \
-  -Principal $principal \
-  -Settings $settings \
-  -Description "Start Bilbingo local server on startup" \
-  -Force | Out-Null
+$registerTaskParams = @{
+  TaskName = $TaskName
+  Action = $action
+  Trigger = $trigger
+  Principal = $principal
+  Settings = $settings
+  Description = "Start Bilbingo local server on startup"
+  Force = $true
+}
+
+Register-ScheduledTask @registerTaskParams | Out-Null
 
 Write-Host "[task] Registered task '$TaskName' to start Bilbingo server on startup (SYSTEM account)."
 
