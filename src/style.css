@@ -52,6 +52,119 @@ p {
   margin-bottom: 22px;
 }
 
+.startup-screen h2 {
+  margin: 0;
+  font-size: clamp(1.4rem, 3.5vw, 1.8rem);
+}
+
+.startup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.startup-admin-btn {
+  width: 42px;
+  height: 42px;
+  background: #f9f4ea;
+}
+
+.startup-admin-btn:hover {
+  background: #f2e7d6;
+}
+
+.startup-admin-panel {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff8ea;
+}
+
+.startup-text {
+  margin-top: 8px;
+  margin-bottom: 16px;
+  color: #4f442f;
+}
+
+.startup-form {
+  display: grid;
+  gap: 14px;
+}
+
+.form-field {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.cashier-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.cashier-fieldset legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.cashier-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cashier-picker input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cashier-picker label {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 8px;
+  text-align: center;
+  font-weight: 700;
+  background: #fff;
+  cursor: pointer;
+}
+
+.cashier-picker input[type="radio"]:checked + label {
+  background: #b0daa6;
+}
+
+.form-field input,
+.form-field select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  background: #fff;
+}
+
+.start-session-btn {
+  margin-top: 6px;
+  width: 100%;
+  padding: 14px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #b0daa6;
+  color: #2b312c;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.03rem;
+}
+
+.start-session-btn:hover {
+  background: #5ec754;
+}
+
 .info-note {
   margin: 6px 0 18px;
   color: #5c4a35;
@@ -300,6 +413,35 @@ p {
   background: #f1ebe1;
 }
 
+.admin-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-control {
+  display: grid;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.admin-control select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  background: #fff;
+}
+
+#admin-cashier-breakdown .cashier-row {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 8px;
+}
+
 #log-details {
   padding: 10px;
   border: 1px dashed var(--border);
@@ -356,5 +498,13 @@ p {
   .item-row {
     gap: 12px;
     align-items: flex-start;
+  }
+
+  .admin-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .cashier-picker {
+    grid-template-columns: 1fr;
   }
 }

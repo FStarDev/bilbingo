@@ -11,6 +11,49 @@
     </div>
     <main class="app-shell">
       <section class="card" style="position:relative;">
+        <section id="startup-screen" class="startup-screen">
+          <div class="startup-header">
+            <h2>Starta försäljningspass</h2>
+            <button id="startup-admin-btn" class="cog-btn startup-admin-btn" type="button" aria-label="Admin inloggning">
+              <svg class="icon icon-cog" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+                <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.5 3.5a7 7 0 0 0-.5-2.5l2.1-1.7-2-3.5-2.5 1a6.9 6.9 0 0 0-2-1.2L13 2h-2l-.6 2.1a6.9 6.9 0 0 0-2 1.2l-2.5-1-2 3.5 2.1 1.7A7 7 0 0 0 3.5 12a7 7 0 0 0 .5 2.5L1.9 16.2l2 3.5 2.5-1a6.9 6.9 0 0 0 2 1.2L11 22h2l.6-2.1a6.9 6.9 0 0 0 2-1.2l2.5 1 2-3.5-2.1-1.7c.3-.8.4-1.6.4-2.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+          <div id="startup-admin-panel" class="startup-admin-panel" hidden>
+            <label class="form-field" for="startup-admin-pin">
+              <span>Admin PIN</span>
+              <input id="startup-admin-pin" type="password" inputmode="numeric" autocomplete="off" />
+            </label>
+            <button id="startup-admin-login-btn" class="start-session-btn" type="button">Logga in som admin</button>
+          </div>
+          <p class="startup-text">Fyll i uppgifter innan dagens försäljning startar.</p>
+          <p class="info-note">Aktuell period: <strong id="current-season-week">-</strong></p>
+          <form id="startup-form" class="startup-form">
+            <label class="form-field" for="salesperson-name">
+              <span>Säljare</span>
+              <input id="salesperson-name" name="salespersonName" type="text" autocomplete="name" required />
+            </label>
+
+            <fieldset class="form-field cashier-fieldset">
+              <legend>Kassanummer</legend>
+              <div class="cashier-picker">
+                <input id="cashier-1" type="radio" name="cashierNumber" value="1" checked />
+                <label for="cashier-1">Kassa 1</label>
+
+                <input id="cashier-2" type="radio" name="cashierNumber" value="2" />
+                <label for="cashier-2">Kassa 2</label>
+
+                <input id="cashier-3" type="radio" name="cashierNumber" value="3" />
+                <label for="cashier-3">Kassa 3</label>
+              </div>
+            </fieldset>
+
+            <button id="start-session-btn" class="start-session-btn" type="submit">Starta pass</button>
+          </form>
+        </section>
+
+        <section id="app-content" hidden>
         <div class="top-controls" style="position:absolute;top:12px;right:12px;display:flex;align-items:center;gap:8px;">
           <button id="cog-btn" class="cog-btn" aria-expanded="false" aria-label="Visa meny">
             <svg class="icon icon-cog" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
@@ -20,11 +63,16 @@
           <div class="top-nav" id="mode-buttons" hidden>
             <button id="view-shop-btn" class="nav-btn">Butik</button>
             <button id="view-stats-btn" class="nav-btn">Statistik</button>
+            <button id="view-admin-stats-btn" class="nav-btn">Adminstatistik</button>
             <button id="view-logs-btn" class="nav-btn">Säljlogg</button>
+            <button id="change-session-btn" class="nav-btn">Byt pass</button>
           </div>
         </div>
         <h1>Kiosk Bilbingo</h1>
         <p>Välj antal för varje produkt</p>
+        <p id="active-session-label" class="info-note"></p>
+
+        <section id="shop-section">
        
         <div class="shop-list" id="shop-list" aria-live="polite">
           
@@ -107,9 +155,11 @@
         </div>
 
         <button class="reset-btn" id="reset-btn" type="button">Nästa kund</button>
+        </section>
 
         <section id="stats-page" hidden style="margin-top:18px;">
           <h2>Statistik</h2>
+          <p id="stats-context" class="info-note" style="margin-bottom:10px"></p>
           <div class="summary-row">
             <span>Totalt antal kunder</span>
             <strong id="total-customers">0</strong>
@@ -121,6 +171,40 @@
           </div>
         </section>
 
+        <section id="admin-stats-page" hidden style="margin-top:18px;">
+          <h2>Adminstatistik</h2>
+          <div class="admin-controls">
+            <label class="admin-control" for="admin-scope-select">
+              <span>Period</span>
+              <select id="admin-scope-select">
+                <option value="week">Aktuell vecka</option>
+                <option value="season">Aktuell säsong</option>
+                <option value="all">All tid</option>
+              </select>
+            </label>
+            <label class="admin-control" for="admin-cashier-select">
+              <span>Kassa</span>
+              <select id="admin-cashier-select">
+                <option value="all">Alla kassor</option>
+                <option value="1">Kassa 1</option>
+                <option value="2">Kassa 2</option>
+                <option value="3">Kassa 3</option>
+              </select>
+            </label>
+          </div>
+          <div class="summary-row" style="margin-top:8px;">
+            <span>Totalt antal kunder</span>
+            <strong id="admin-total-customers">0</strong>
+          </div>
+          <div id="admin-product-totals" style="margin-top:10px"></div>
+          <div class="summary-row total" style="margin-top:8px">
+            <span>Totalt sålt</span>
+            <strong id="admin-total-revenue">0 kr</strong>
+          </div>
+          <h3 style="margin-top:14px; margin-bottom:8px;">Per kassa</h3>
+          <div id="admin-cashier-breakdown"></div>
+        </section>
+
         <section id="logs-page" hidden style="margin-top:18px;">
           <div class="logs-header">
             <h2>Säljlogg</h2>
@@ -128,6 +212,7 @@
           </div>
           <div id="logs-list" style="margin-top:8px"></div>
         </section>
+      </section>
       </section>
     </main>
     <script>
