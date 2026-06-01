@@ -165,8 +165,8 @@ This is the simplest always-on setup:
 3. `npm run start:server`
 4. Open firewall for TCP 8787 as Administrator
 5. Create a startup task in Task Scheduler that runs:
-   - Program/script: npm
-   - Arguments: run start:server
+   - Program/script: powershell
+   - Arguments: -ExecutionPolicy Bypass -File C:\Source\bilbingo\scripts\register-server-startup-task.ps1
    - Start in: C:\Source\bilbingo
 
 With this setup you do not need to start frontend and backend separately after each reboot. One server process handles both.
@@ -177,6 +177,8 @@ Instead of creating the startup task manually, run:
 
 1. `npm run task:register-server-startup`
 2. Optional immediate start: `powershell -ExecutionPolicy Bypass -File .\scripts\register-server-startup-task.ps1 -StartNow`
+
+This script creates a task that runs at machine startup under the `SYSTEM` account to avoid password prompts.
 
 ### Auto-deploy with server task restart
 
