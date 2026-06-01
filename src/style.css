@@ -415,7 +415,7 @@ p {
 
 .admin-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -437,9 +437,47 @@ p {
 #admin-cashier-breakdown .cashier-row {
   padding: 10px;
   border: 1px solid var(--border);
+  border-left-width: 1px;
+  border-left-color: var(--border);
   border-radius: 8px;
   background: #fff;
   margin-bottom: 8px;
+  cursor: pointer;
+}
+
+#admin-cashier-breakdown .cashier-row .cashier-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
+#admin-cashier-breakdown .cashier-selected-badge {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 18%, white);
+  color: #423420;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+#admin-cashier-breakdown .cashier-row:hover,
+#admin-cashier-breakdown .cashier-row:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, white);
+  outline: none;
+}
+
+#admin-cashier-breakdown .cashier-row.is-active {
+  border-color: var(--primary);
+  border-left-width: 4px;
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 16%, white);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 24%, white);
 }
 
 #log-details {

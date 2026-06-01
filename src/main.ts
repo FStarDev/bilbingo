@@ -11,6 +11,7 @@ document.getElementById("startup-error")?.setAttribute("hidden", "");
 
 type ItemId = "storbingo" | "rovaren" | "freeplay" | "fiftyfifty";
 type StatsScope = "week" | "season" | "all";
+type AdminCashierFilter = "all" | "1" | "2" | "3";
 
 type ShopItem = {
   id: ItemId;
@@ -137,7 +138,6 @@ const productTotalsEl = document.getElementById("product-totals");
 const totalRevenueEl = document.getElementById("total-revenue");
 
 const adminScopeSelect = document.querySelector<HTMLSelectElement>("#admin-scope-select");
-const adminCashierSelect = document.querySelector<HTMLSelectElement>("#admin-cashier-select");
 const adminTotalCustomersEl = document.getElementById("admin-total-customers");
 const adminProductTotalsEl = document.getElementById("admin-product-totals");
 const adminTotalRevenueEl = document.getElementById("admin-total-revenue");
@@ -158,11 +158,13 @@ const currentSeasonWeekEl = document.getElementById("current-season-week");
 const activeSessionLabel = document.getElementById("active-session-label");
 const syncStatusEl = document.getElementById("sync-status");
 const changeSessionBtn = document.getElementById("change-session-btn");
+const shopIntroTextEl = document.getElementById("shop-intro-text");
 
 let activeSession: SalesSession | null = null;
 let activeLogDetailId: string | null = null;
 let isSyncInFlight = false;
 let backendReachable = true;
+let adminCashierFilter: AdminCashierFilter = "all";
 
 if (!shopListEl || !totalItemsEl || !totalPriceEl || !registerSaleBtn) {
   throw new Error("Expected shop elements are missing from the page.");
@@ -173,6 +175,14 @@ const totalPriceValueEl = totalPriceEl;
 
 function isItemId(value: string): value is ItemId {
   return value === "storbingo" || value === "rovaren" || value === "freeplay" || value === "fiftyfifty";
+}
+
+function setAdminCashierFilter(nextFilter: AdminCashierFilter, refresh = true): void {
+  adminCashierFilter = nextFilter;
+
+  if (refresh) {
+    void refreshAdminData();
+  }
 }
 
 function createEmptyProductTotals(): ProductTotals {
@@ -474,7 +484,7 @@ function filterLogsForAdmin(
   seasonYear: number,
   seasonWeek: number,
   scope: StatsScope,
-  cashierFilter: string,
+  cashierFilter: AdminCashierFilter,
 ): SalesLogEntry[] {
   return logs.filter((entry) => {
     if (scope === "week" && (entry.seasonYear !== seasonYear || entry.seasonWeek !== seasonWeek)) {
@@ -699,7 +709,7 @@ function clearAdminViews(): void {
   if (logsListEl) logsListEl.innerHTML = "";
 }
 
-function renderAdminStatsFromEntries(logs: SalesLogEntry[]): void {
+function renderAdminStatsFromEntries(logs: SalesLogEntry[], breakdownLogs: SalesLogEntry[]): void {
   const stats = aggregateLogs(logs);
   if (adminTotalCustomersEl) adminTotalCustomersEl.textContent = String(stats.totalCustomers);
   if (adminTotalRevenueEl) adminTotalRevenueEl.textContent = `${stats.totalRevenue} kr`;
@@ -717,18 +727,70 @@ function renderAdminStatsFromEntries(logs: SalesLogEntry[]): void {
   if (adminCashierBreakdownEl) {
     adminCashierBreakdownEl.innerHTML = "";
     const byCashier = new Map<number, { customers: number; revenue: number }>();
-    logs.forEach((entry) => {
+    breakdownLogs.forEach((entry) => {
       const current = byCashier.get(entry.cashierNumber) ?? { customers: 0, revenue: 0 };
       current.customers += 1;
       current.revenue += entry.totalPrice;
       byCashier.set(entry.cashierNumber, current);
     });
 
+    const allCashierStats = aggregateLogs(breakdownLogs);
+    const allRow = document.createElement("div");
+    allRow.className = "cashier-row";
+    allRow.setAttribute("role", "button");
+    allRow.tabIndex = 0;
+    allRow.setAttribute("aria-label", "Visa statistik for alla kassor");
+    const isAllActive = adminCashierFilter === "all";
+    if (isAllActive) {
+      allRow.classList.add("is-active");
+    }
+    allRow.innerHTML = `
+      <div class="cashier-row-head">
+        <strong>Alla kassor</strong>
+        ${isAllActive ? "<span class=\"cashier-selected-badge\">Vald</span>" : ""}
+      </div>
+      <div>${allCashierStats.totalCustomers} kunder - ${allCashierStats.totalRevenue} kr</div>
+    `;
+    allRow.addEventListener("click", () => {
+      setAdminCashierFilter("all");
+    });
+    allRow.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      setAdminCashierFilter("all");
+    });
+    adminCashierBreakdownEl.appendChild(allRow);
+
     [1, 2, 3].forEach((cashierNumber) => {
       const current = byCashier.get(cashierNumber) ?? { customers: 0, revenue: 0 };
       const row = document.createElement("div");
       row.className = "cashier-row";
-      row.innerHTML = `<strong>Kassa ${cashierNumber}</strong><div>${current.customers} kunder - ${current.revenue} kr</div>`;
+      row.setAttribute("role", "button");
+      row.tabIndex = 0;
+      row.setAttribute("aria-label", `Visa statistik for kassa ${cashierNumber}`);
+      const isCashierActive = adminCashierFilter === String(cashierNumber);
+      if (isCashierActive) {
+        row.classList.add("is-active");
+      }
+      row.innerHTML = `
+        <div class="cashier-row-head">
+          <strong>Kassa ${cashierNumber}</strong>
+          ${isCashierActive ? "<span class=\"cashier-selected-badge\">Vald</span>" : ""}
+        </div>
+        <div>${current.customers} kunder - ${current.revenue} kr</div>
+      `;
+      row.addEventListener("click", () => {
+        setAdminCashierFilter(String(cashierNumber) as AdminCashierFilter);
+      });
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        setAdminCashierFilter(String(cashierNumber) as AdminCashierFilter);
+      });
       adminCashierBreakdownEl.appendChild(row);
     });
   }
@@ -824,9 +886,11 @@ async function refreshAdminData(): Promise<void> {
   }
 
   const scope = (adminScopeSelect?.value ?? "week") as StatsScope;
-  const cashierFilter = adminCashierSelect?.value ?? "all";
-  const visibleLogs = filterLogsForAdmin(allLogs, session.seasonYear, session.seasonWeek, scope, cashierFilter);
-  renderAdminStatsFromEntries(visibleLogs);
+  const scopeLogs = filterLogsForAdmin(allLogs, session.seasonYear, session.seasonWeek, scope, "all");
+  const visibleLogs = adminCashierFilter === "all"
+    ? scopeLogs
+    : scopeLogs.filter((entry) => entry.cashierNumber === Number(adminCashierFilter));
+  renderAdminStatsFromEntries(visibleLogs, scopeLogs);
   renderLogsFromEntries(visibleLogs);
 }
 
@@ -887,6 +951,7 @@ function syncRoleAccessUI(): void {
   if (viewLogsBtn) viewLogsBtn.hidden = !isAdmin;
   if (clearLogBtn) clearLogBtn.hidden = !isAdmin;
   if (shopSection) shopSection.hidden = isAdmin;
+  if (shopIntroTextEl) shopIntroTextEl.hidden = isAdmin;
 }
 
 function syncSessionUI(): void {
@@ -1167,10 +1232,6 @@ adminScopeSelect?.addEventListener("change", () => {
   void refreshAdminData();
 });
 
-adminCashierSelect?.addEventListener("change", () => {
-  void refreshAdminData();
-});
-
 addAllButtonEl?.addEventListener("click", () => {
   items.forEach((item) => {
     item.quantity += 1;
@@ -1196,6 +1257,7 @@ window.setInterval(() => {
 }, 15000);
 
 activeSession = loadActiveSession();
+setAdminCashierFilter("all", false);
 renderStartupPeriod();
 syncSessionUI();
 showView(activeSession?.role === "admin" ? "admin" : "shop");
