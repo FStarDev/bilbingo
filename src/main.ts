@@ -1426,7 +1426,6 @@ registerSaleBtn.addEventListener("click", () => {
 
   const entry = buildSaleEntryFromCurrent();
   if (!entry) {
-    window.alert("Lägg till minst en vara innan du trycker på Nästa kund.");
     return;
   }
 
