@@ -1109,7 +1109,7 @@ function showSaleToast(totalPrice: number): void {
     return;
   }
 
-  saleToastEl.textContent = `Kop registrerat - ${totalPrice} kr`;
+  saleToastEl.textContent = `Köp registrerat - ${totalPrice} kr`;
   saleToastEl.hidden = false;
   saleToastEl.classList.remove("is-visible");
 

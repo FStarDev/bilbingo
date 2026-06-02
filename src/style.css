@@ -234,7 +234,7 @@ p {
   margin-top: 14px;
   padding: 12px 14px;
   font-size: 1rem;
-  background: linear-gradient(180deg, rgba(34,197,94,0.12), rgba(34,197,94,0.06));
+  background: rgba(34,197,94,0.12);
   color: #22c55e;
   border: 1px solid rgba(34,197,94,0.12);
   font-weight: 700;
@@ -860,29 +860,33 @@ select:focus-visible {
   .header-row {
     padding-right: 10px;
     gap: 10px;
-    align-items: flex-start;
+    align-items: center;
+    flex-wrap: nowrap;
   }
 
   .header-row .item-meta {
     justify-content: flex-start;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
   }
 
   .item-row {
     gap: 12px;
-    align-items: flex-start;
+    align-items: center;
   }
 
   .qty-control {
     gap: 8px;
-    width: 100%;
+    width: auto;
     justify-content: flex-end;
+    align-items: center;
   }
 
   .qty-btn,
   .addall-btn {
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
   }
 
   .cashier-picker {
@@ -1055,14 +1059,16 @@ select:focus-visible {
 
   .qty-btn,
   .addall-btn {
-    width: clamp(30px, 8.2cqi, 44px);
-    height: clamp(30px, 8.2cqi, 44px);
-    font-size: clamp(0.95rem, 2.5cqi, 1.08rem);
+    width: clamp(36px, 8.2cqi, 48px);
+    height: clamp(36px, 8.2cqi, 48px);
+    font-size: clamp(1rem, 2.6cqi, 1.12rem);
+    flex-shrink: 0;
   }
 
   .qty-value {
-    min-width: clamp(18px, 4.6cqi, 24px);
-    font-size: clamp(0.94rem, 2.2cqi, 1rem);
+    min-width: clamp(24px, 4.6cqi, 28px);
+    font-size: clamp(1rem, 2.3cqi, 1.05rem);
+    flex-shrink: 0;
   }
 
   .summary {
