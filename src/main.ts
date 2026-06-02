@@ -109,9 +109,9 @@ class ApiError extends Error {
 
 const items: ShopItem[] = [
   { id: "storbingo", name: "Storbingo", price: 50, quantity: 0 },
-  { id: "rovaren", name: "Rovaren", price: 20, quantity: 0 },
+  { id: "rovaren", name: "Rövaren", price: 20, quantity: 0 },
   { id: "freeplay", name: "Freeplay", price: 20, quantity: 0 },
-  { id: "fiftyfifty", name: "FiftyFifty", price: 20, quantity: 0 },
+  { id: "fiftyfifty", name: "Fifty/Fifty", price: 20, quantity: 0 },
 ];
 
 const STORAGE_KEY = "bilbingo-sales-log";
