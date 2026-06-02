@@ -32,7 +32,7 @@
             <button id="startup-admin-login-btn" class="start-session-btn" type="button">Logga in som admin</button>
           </div>
           <p class="startup-text">Fyll i uppgifter innan dagens försäljning startar.</p>
-          <p class="info-note">Aktuell period: <strong id="current-season-week">-</strong></p>
+          <p class="info-note">Aktuellt datum: <strong id="current-season-week">-</strong></p>
           <form id="startup-form" class="startup-form">
             <label class="form-field" for="salesperson-name">
               <span>Säljare</span>
@@ -58,25 +58,31 @@
         </section>
 
         <section id="app-content" hidden>
-        <div class="top-controls" style="position:absolute;top:12px;right:12px;display:flex;align-items:center;gap:8px;">
-          <button id="cog-btn" class="cog-btn" aria-expanded="false" aria-label="Visa meny">
-            <svg class="icon icon-cog" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
-              <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.5 3.5a7 7 0 0 0-.5-2.5l2.1-1.7-2-3.5-2.5 1a6.9 6.9 0 0 0-2-1.2L13 2h-2l-.6 2.1a6.9 6.9 0 0 0-2 1.2l-2.5-1-2 3.5 2.1 1.7A7 7 0 0 0 3.5 12a7 7 0 0 0 .5 2.5L1.9 16.2l2 3.5 2.5-1a6.9 6.9 0 0 0 2 1.2L11 22h2l.6-2.1a6.9 6.9 0 0 0 2-1.2l2.5 1 2-3.5-2.1-1.7c.3-.8.4-1.6.4-2.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <div class="top-nav" id="mode-buttons" hidden>
-            <button id="view-shop-btn" class="nav-btn">Butik</button>
-            <button id="view-stats-btn" class="nav-btn">Statistik</button>
-            <button id="view-connect-btn" class="nav-btn">QR-lank</button>
-            <button id="view-admin-stats-btn" class="nav-btn">Adminstatistik</button>
-            <button id="view-logs-btn" class="nav-btn">Säljlogg</button>
-            <button id="change-session-btn" class="nav-btn">Byt pass</button>
+        <div class="brand-row">
+          <header class="brand">
+            <img class="brand-logo" src="https://az729104.cdn.laget.se/emblem_11607917.png" alt="Bilbingo logo" />
+            <h1>Bilbingo</h1>
+          </header>
+          <div class="top-controls">
+            <div class="top-banner">
+              <span id="sales-open-indicator" aria-live="polite"></span>
+              <button id="cog-btn" class="cog-btn" aria-expanded="false" aria-label="Visa meny">
+                <svg class="icon icon-cog" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+                  <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.5 3.5a7 7 0 0 0-.5-2.5l2.1-1.7-2-3.5-2.5 1a6.9 6.9 0 0 0-2-1.2L13 2h-2l-.6 2.1a6.9 6.9 0 0 0-2 1.2l-2.5-1-2 3.5 2.1 1.7A7 7 0 0 0 3.5 12a7 7 0 0 0 .5 2.5L1.9 16.2l2 3.5 2.5-1a6.9 6.9 0 0 0 2 1.2L11 22h2l.6-2.1a6.9 6.9 0 0 0 2-1.2l2.5 1 2-3.5-2.1-1.7c.3-.8.4-1.6.4-2.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="top-nav" id="mode-buttons" hidden>
+              <button id="view-shop-btn" class="nav-btn">Butik</button>
+              <button id="view-stats-btn" class="nav-btn">Statistik</button>
+              <button id="view-connect-btn" class="nav-btn">QR-lank</button>
+              <button id="view-admin-occasions-btn" class="nav-btn">Säljpass</button>
+              <button id="view-admin-stats-btn" class="nav-btn">Adminstatistik</button>
+              <button id="view-logs-btn" class="nav-btn">Säljlogg</button>
+              <button id="change-session-btn" class="nav-btn">Byt pass</button>
+            </div>
           </div>
         </div>
-        <header class="brand">
-          <img class="brand-logo" src="https://az729104.cdn.laget.se/emblem_11607917.png" alt="Bilbingo logo" />
-          <h1>Bilbingo</h1>
-        </header>
         <div class="session-meta">
           <p id="active-session-label" class="info-note"></p>
           <span id="sync-status" aria-hidden="true"></span>
@@ -188,9 +194,8 @@
             <label class="admin-control" for="admin-scope-select">
               <span>Period</span>
               <select id="admin-scope-select">
-                <option value="week">Aktuell vecka</option>
-                <option value="season">Aktuell säsong</option>
-                <option value="all">All tid</option>
+                <option value="today">Idag</option>
+                <option value="year">I år</option>
               </select>
             </label>
           </div>
@@ -205,6 +210,23 @@
           </div>
           <h3 style="margin-top:14px; margin-bottom:8px;">Per kassa</h3>
           <div id="admin-cashier-breakdown"></div>
+        </section>
+
+        <section id="admin-occasions-page" hidden style="margin-top:18px;">
+          <h2>Försäljningspass</h2>
+          <div class="admin-controls">
+            <label class="admin-control">
+              <span>Idag</span>
+              <div class="occasion-toggle-row">
+                <label class="switch-control" for="admin-occasion-toggle">
+                  <input id="admin-occasion-toggle" type="checkbox" role="switch" aria-label="Öppna eller stäng dagens försäljningspass" />
+                  <span class="switch-track" aria-hidden="true"></span>
+                  <span id="admin-occasion-toggle-label" class="switch-text">Stängd</span>
+                </label>
+                <div id="admin-occasion-status" class="occasion-status">-</div>
+              </div>
+            </label>
+          </div>
         </section>
 
         <section id="connect-page" hidden style="margin-top:18px;">
@@ -223,9 +245,18 @@
         </section>
 
         <section id="logs-page" hidden style="margin-top:18px;">
+          <div class="admin-controls" style="margin-bottom:10px;">
+            <label class="admin-control" for="logs-scope-select">
+              <span>Period</span>
+              <select id="logs-scope-select">
+                <option value="today">Idag</option>
+                <option value="year">I år</option>
+              </select>
+            </label>
+          </div>
           <div class="logs-header">
             <h2 id="logs-title">Säljlogg</h2>
-            <button id="clear-log-btn" class="clear-log-btn">Töm loggen</button>
+            <button id="clear-log-btn" class="clear-log-btn">Töm dagens logg</button>
           </div>
           <div id="logs-list" style="margin-top:8px"></div>
         </section>
