@@ -1182,7 +1182,7 @@ function renderSessionLabel(): void {
     activeSessionLabel.textContent = `Admin - ${displayDate}`;
     return;
   }
-  activeSessionLabel.textContent = `Inloggad: ${activeSession.salespersonName} - ${displayDate} - Kassa ${activeSession.cashierNumber}`;
+  activeSessionLabel.textContent = `${activeSession.salespersonName} - Kassa ${activeSession.cashierNumber}`;
 }
 
 function renderStartupPeriod(): void {

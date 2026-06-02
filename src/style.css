@@ -864,7 +864,7 @@ p {
 #reset-btn {
   font-size: clamp(1.02rem, 3cqi, 1.25rem);
   padding: clamp(14px, 2.8cqi, 18px) 12px;
-  color: #fff;
+  color: #bac7b1;
 }
 
 #stats-page,
