@@ -276,6 +276,36 @@ p {
   box-shadow: 0 0 0 2px rgba(255,255,255,0.2);
 }
 
+#sales-open-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 220px;
+  max-width: 100%;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  font-weight: 800;
+  font-size: 0.96rem;
+  color: var(--muted);
+}
+
+#sales-open-indicator .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+  background: var(--muted);
+}
+
+#sales-open-indicator.open { color: var(--text); background: rgba(255,122,26,0.1); border-color: rgba(255,122,26,0.18); visibility: hidden;}
+#sales-open-indicator.open .dot { background: var(--primary); box-shadow: 0 0 0 3px rgba(255,122,26,0.12); }
+
+#sales-open-indicator.closed { color: var(--text); background: rgba(255,85,85,0.12); border-color: rgba(255,85,85,0.22); }
+#sales-open-indicator.closed .dot { background: var(--danger); box-shadow: 0 0 0 2px rgba(255,85,85,0.16); }
+
 #sync-status[hidden] {
   display: none !important;
 }
@@ -295,6 +325,7 @@ p {
 .shop-list {
   display: grid;
   gap: 10px;
+  margin-bottom: 12px;
 }
 
 .header-row {
@@ -434,7 +465,7 @@ p {
 }
 
 .summary {
-  margin-top: 8px;
+  margin-top: 14px;
   padding: clamp(10px, 2.2cqi, 14px);
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.04);
@@ -477,8 +508,35 @@ p {
   font-variant-numeric: tabular-nums;
 }
 
+.brand-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+  min-width: 0;
+}
+
+.brand-row > * {
+  min-width: 0;
+}
+
 .top-controls {
-  z-index: 8;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.top-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .cog-btn {
@@ -493,12 +551,21 @@ p {
 }
 
 .top-nav {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  background: transparent;
-  max-width: min(78vw, 480px);
+  width: min(90vw, 320px);
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+  backdrop-filter: none;
+  z-index: 12;
 }
 
 .top-nav[hidden] {
@@ -843,8 +910,68 @@ select:focus-visible {
   }
 
   .top-controls {
-    top: 10px !important;
-    right: 10px !important;
+    position: relative !important;
+    width: auto;
+    max-width: 280px;
+    align-items: flex-end;
+    margin-bottom: 0;
+  }
+
+  .top-banner {
+    width: auto;
+    max-width: 100%;
+    justify-content: flex-end;
+    align-items: flex-end;
+    flex-direction: column-reverse;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .top-banner #sales-open-indicator {
+    max-width: 180px;
+    width: auto;
+    min-width: 0;
+    flex: 0 0 auto;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .top-banner button.cog-btn {
+    margin-left: 0;
+    flex: 0 0 auto;
+  }
+
+  .top-nav {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    left: auto;
+    width: auto;
+    min-width: 180px;
+    max-width: min(100%, 320px);
+    flex-direction: column;
+    align-items: stretch;
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 12px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+    backdrop-filter: none;
+    z-index: 12;
+  }
+
+  .top-nav .nav-btn {
+    width: 100%;
+    text-align: left;
+  }
+
+  .top-nav .nav-btn + .nav-btn {
+    margin-top: 8px;
   }
 
   h1 {
@@ -894,8 +1021,8 @@ select:focus-visible {
   }
 
   .top-nav {
-    width: 100%;
-    justify-content: space-between;
+    width: min(90vw, 320px);
+    justify-content: flex-start;
   }
 
   .top-nav .nav-btn {

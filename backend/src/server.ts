@@ -1,6 +1,6 @@
 import cors from "cors";
 import express, { type Request, type Response } from "express";
-import { existsSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { hostname, networkInterfaces } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -29,7 +29,7 @@ type AdminLoginPayload = {
   pin: string;
 };
 
-type StatsScope = "week" | "season" | "all";
+type StatsScope = "week" | "season" | "all" | "occasion" | "current_occasion" | "year";
 
 type Period = {
   seasonYear: number;
@@ -41,6 +41,14 @@ type ProductSummary = {
   name: string;
   quantity: number;
   amount: number;
+};
+
+type Occasion = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  open: number; // 0 or 1
+  createdAt: number;
+  closedAt?: number | null;
 };
 
 const DEFAULT_PORT = 8787;
@@ -131,7 +139,10 @@ function parseAdminLoginPayload(body: unknown): AdminLoginPayload | null {
 }
 
 function parseScope(raw: unknown): StatsScope {
-  return raw === "season" || raw === "all" ? raw : "week";
+  if (raw === "season" || raw === "all" || raw === "week" || raw === "occasion" || raw === "current_occasion" || raw === "year") {
+    return raw as StatsScope;
+  }
+  return "week";
 }
 
 function parseCashierNumber(raw: unknown): number | null {
@@ -143,7 +154,6 @@ function parseCashierNumber(raw: unknown): number | null {
   if (!Number.isInteger(cashierNumber) || cashierNumber < 1 || cashierNumber > 3) {
     return null;
   }
-
   return cashierNumber;
 }
 
@@ -176,9 +186,9 @@ function getConnectUrls(protocol: "http" | "https", port: number, path: string):
     .map((entry) => `${protocol}:/${entry}${portPart}${normalizedPath}`);
 }
 
-function buildSalesWhere(scope: StatsScope, cashierNumber: number | null, period: Period): { whereSql: string; params: Array<number> } {
+function buildSalesWhere(scope: StatsScope, cashierNumber: number | null, period: Period, occasionId?: string | null): { whereSql: string; params: Array<any> } {
   const clauses: string[] = [];
-  const params: Array<number> = [];
+  const params: Array<any> = [];
 
   if (scope === "week") {
     clauses.push("s.season_year = ?", "s.season_week = ?");
@@ -186,6 +196,20 @@ function buildSalesWhere(scope: StatsScope, cashierNumber: number | null, period
   } else if (scope === "season") {
     clauses.push("s.season_year = ?");
     params.push(period.seasonYear);
+  } else if (scope === "year") {
+    clauses.push("s.season_year = ?");
+    params.push(period.seasonYear);
+  } else if (scope === "current_occasion") {
+    // filter by currently open occasion
+    clauses.push("s.occasion_id = (SELECT id FROM occasions WHERE open = 1 LIMIT 1)");
+  } else if (scope === "occasion") {
+    if (occasionId) {
+      clauses.push("s.occasion_id = ?");
+      params.push(occasionId);
+    } else {
+      // no occasion specified -> match nothing
+      clauses.push("0 = 1");
+    }
   }
 
   if (cashierNumber !== null) {
@@ -262,6 +286,18 @@ async function requireAdmin(request: Request, response: Response, db: Database):
 
 async function ensureDatabase(): Promise<Database> {
   await mkdir(dataDir, { recursive: true });
+  // If requested, remove existing DB to start fresh (useful in testing/deploy)
+  const resetDb = String(process.env.BILBINGO_RESET_DB ?? "").toLowerCase();
+  if (resetDb === "1" || resetDb === "true") {
+    if (existsSync(databasePath)) {
+      try {
+        unlinkSync(databasePath);
+        console.log("Bilbingo: existing database removed due to BILBINGO_RESET_DB");
+      } catch (err) {
+        console.warn("Bilbingo: failed to remove existing database:", err);
+      }
+    }
+  }
   const db = await open({
     filename: databasePath,
     driver: sqlite3.Database,
@@ -276,6 +312,7 @@ async function ensureDatabase(): Promise<Database> {
       cashier_number INTEGER NOT NULL CHECK(cashier_number BETWEEN 1 AND 3),
       season_year INTEGER NOT NULL,
       season_week INTEGER NOT NULL,
+      occasion_id TEXT,
       total_items INTEGER NOT NULL,
       total_price INTEGER NOT NULL,
       sale_timestamp INTEGER NOT NULL,
@@ -304,7 +341,17 @@ async function ensureDatabase(): Promise<Database> {
     CREATE INDEX IF NOT EXISTS idx_sales_cashier ON sales(cashier_number);
     CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
     CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);
+    
+    CREATE TABLE IF NOT EXISTS occasions (
+      id TEXT PRIMARY KEY,
+      date TEXT NOT NULL,
+      open INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      closed_at INTEGER
+    );
   `);
+
+  // No automatic migration of old data: user may reset DB via BILBINGO_RESET_DB.
 
   await db.run(
     `
@@ -332,6 +379,129 @@ async function main() {
       currentPeriod: getCurrentPeriod(),
     });
   });
+
+  async function closeExpiredOccasions(): Promise<void> {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const now = Date.now();
+      await db.run(`UPDATE occasions SET open = 0, closed_at = ? WHERE open = 1 AND date < ?`, now, today);
+    } catch (err) {
+      console.warn("Error closing expired occasions:", err);
+    }
+  }
+
+  // Close expired occasions on startup and periodically (runs every minute)
+  await closeExpiredOccasions();
+  setInterval(() => void closeExpiredOccasions(), 60 * 1000);
+
+    app.get("/api/occasions/current", async (_request: Request, response: Response) => {
+      const row = await db.get<Occasion>(`
+        SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+        FROM occasions
+        WHERE open = 1
+        ORDER BY date DESC
+        LIMIT 1
+      `);
+      response.json(row ?? null);
+    });
+
+    app.get("/api/occasions", async (request: Request, response: Response) => {
+      const { date } = request.query;
+      if (typeof date === "string" && date.length > 0) {
+        const rows = await db.all<Occasion>(`
+          SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+          FROM occasions
+          WHERE date = ?
+          ORDER BY created_at DESC
+        `, date);
+        response.json(rows);
+        return;
+      }
+
+      const rows = await db.all<Occasion>(`
+        SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+        FROM occasions
+        ORDER BY date DESC, created_at DESC
+      `);
+      response.json(rows);
+    });
+
+    app.post("/api/occasions/open", async (request: Request, response: Response) => {
+      if (!(await requireAdmin(request, response, db))) {
+        return;
+      }
+      const body = request.body as { date?: string } | undefined;
+      const today = typeof body?.date === "string" && body.date.length > 0
+        ? body.date
+        : new Date().toISOString().slice(0, 10);
+      const now = Date.now();
+
+      await db.exec("BEGIN");
+      try {
+        await db.run(
+          `UPDATE occasions SET open = 0, closed_at = ? WHERE open = 1 AND date != ?`,
+          now,
+          today,
+        );
+
+        const existing = await db.get<Occasion>(`
+          SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+          FROM occasions
+          WHERE date = ?
+          LIMIT 1
+        `, today);
+
+        if (existing) {
+          await db.run(
+            `UPDATE occasions SET open = 1, closed_at = NULL WHERE id = ?`,
+            existing.id,
+          );
+        } else {
+          await db.run(
+            `INSERT INTO occasions (id, date, open, created_at) VALUES (?, ?, 1, ?)`,
+            crypto.randomUUID(),
+            today,
+            now,
+          );
+        }
+
+        await db.exec("COMMIT");
+      } catch (err) {
+        await db.exec("ROLLBACK");
+        throw err;
+      }
+
+      const row = await db.get<Occasion>(`
+        SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+        FROM occasions
+        WHERE date = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `, today);
+      response.status(200).json(row ?? null);
+    });
+
+    app.post("/api/occasions/:id/close", async (request: Request, response: Response) => {
+      if (!(await requireAdmin(request, response, db))) {
+        return;
+      }
+
+      const { id } = request.params;
+      const occasion = await db.get<Occasion>(`
+        SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+        FROM occasions
+        WHERE id = ?
+      `, id);
+
+      if (!occasion) {
+        response.status(404).json({ error: "Occasion not found." });
+        return;
+      }
+
+      const now = Date.now();
+      await db.run(`UPDATE occasions SET open = 0, closed_at = ? WHERE id = ?`, now, id);
+      response.status(200).json({ ...occasion, open: 0, closedAt: now });
+    });
 
   app.get("/api/period/current", (_request: Request, response: Response) => {
     response.json(getCurrentPeriod());
@@ -448,48 +618,77 @@ async function main() {
         return;
       }
 
-      await db.run(
-        `
-          INSERT INTO sales (
-            id,
-            salesperson_name,
-            cashier_number,
-            season_year,
-            season_week,
-            total_items,
-            total_price,
-            sale_timestamp
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        saleId,
-        payload.salespersonName.trim(),
-        payload.cashierNumber,
-        period.seasonYear,
-        period.seasonWeek,
-        totalItems,
-        totalPrice,
-        saleTimestamp,
-      );
+      const isTest = request.query.test === "1" || request.query.test === "true" || Boolean((request.body as any).test === true);
+      if (!isTest) {
+        // Ensure there is an open occasion for accepting sales
+        const openOccasion = await db.get<{ id: string }>(`SELECT id FROM occasions WHERE open = 1 LIMIT 1`);
+        if (!openOccasion) {
+          await db.exec("ROLLBACK");
+          response.status(403).json({ error: "Sales are currently closed." });
+          return;
+        }
 
-      for (const item of items) {
         await db.run(
           `
-            INSERT INTO sale_items (
-              sale_id,
-              item_id,
-              item_name,
-              unit_price,
-              quantity,
-              amount
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO sales (
+              id,
+              salesperson_name,
+              cashier_number,
+              season_year,
+              season_week,
+              occasion_id,
+              total_items,
+              total_price,
+              sale_timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
           saleId,
-          item.id,
-          item.name,
-          item.price,
-          item.quantity,
-          item.amount,
+          payload.salespersonName.trim(),
+          payload.cashierNumber,
+          period.seasonYear,
+          period.seasonWeek,
+          openOccasion.id,
+          totalItems,
+          totalPrice,
+          saleTimestamp,
         );
+
+        for (const item of items) {
+          await db.run(
+            `
+              INSERT INTO sale_items (
+                sale_id,
+                item_id,
+                item_name,
+                unit_price,
+                quantity,
+                amount
+              ) VALUES (?, ?, ?, ?, ?, ?)
+            `,
+            saleId,
+            item.id,
+            item.name,
+            item.price,
+            item.quantity,
+            item.amount,
+          );
+        }
+      } else {
+        // Test mode: don't persist anything, but return a simulated response
+        await db.exec("ROLLBACK");
+        response.status(200).json({
+          id: saleId,
+          salespersonName: payload.salespersonName.trim(),
+          cashierNumber: payload.cashierNumber,
+          seasonYear: period.seasonYear,
+          seasonWeek: period.seasonWeek,
+          saleTimestamp,
+          totalItems,
+          totalPrice,
+          items,
+          test: true,
+        });
+        return;
       }
 
       await db.exec("COMMIT");
@@ -569,8 +768,9 @@ async function main() {
 
     const scope = parseScope(request.query.scope);
     const cashierNumber = parseCashierNumber(request.query.cashierNumber);
+    const occasionId = typeof request.query.occasionId === "string" ? request.query.occasionId : undefined;
     const period = getCurrentPeriod();
-    const filters = buildSalesWhere(scope, cashierNumber, period);
+    const filters = buildSalesWhere(scope, cashierNumber, period, occasionId);
 
     const totals = await db.get<{
       totalCustomers: number;
@@ -635,8 +835,9 @@ async function main() {
     const scope = parseScope(request.query.scope);
     const cashierNumber = parseCashierNumber(request.query.cashierNumber);
     const limit = Math.min(500, Math.max(1, Number(request.query.limit ?? 100)));
+    const occasionId = typeof request.query.occasionId === "string" ? request.query.occasionId : undefined;
     const period = getCurrentPeriod();
-    const filters = buildSalesWhere(scope, cashierNumber, period);
+    const filters = buildSalesWhere(scope, cashierNumber, period, occasionId);
 
     const sales = await db.all<Array<{
       id: string;

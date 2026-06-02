@@ -130,6 +130,7 @@ const addAllButtonEl = document.querySelector<HTMLButtonElement>(".addall-btn");
 const viewShopBtn = document.getElementById("view-shop-btn");
 const viewStatsBtn = document.getElementById("view-stats-btn");
 const viewConnectBtn = document.getElementById("view-connect-btn");
+const viewAdminOccasionsBtn = document.getElementById("view-admin-occasions-btn");
 const viewAdminStatsBtn = document.getElementById("view-admin-stats-btn");
 const viewLogsBtn = document.getElementById("view-logs-btn");
 const cogBtn = document.getElementById("cog-btn");
@@ -138,6 +139,7 @@ const modeButtons = document.getElementById("mode-buttons");
 const statsPage = document.getElementById("stats-page");
 const connectPage = document.getElementById("connect-page");
 const adminStatsPage = document.getElementById("admin-stats-page");
+const adminOccasionsPage = document.getElementById("admin-occasions-page");
 const logsPage = document.getElementById("logs-page");
 const shopSection = document.getElementById("shop-section");
 
@@ -151,7 +153,13 @@ const adminTotalCustomersEl = document.getElementById("admin-total-customers");
 const adminProductTotalsEl = document.getElementById("admin-product-totals");
 const adminTotalRevenueEl = document.getElementById("admin-total-revenue");
 const adminCashierBreakdownEl = document.getElementById("admin-cashier-breakdown");
+const adminOpenOccasionBtn = document.getElementById("admin-open-occasion-btn") as HTMLButtonElement | null;
+const adminCloseOccasionBtn = document.getElementById("admin-close-occasion-btn") as HTMLButtonElement | null;
+const adminOccasionStatusEl = document.getElementById("admin-occasion-status");
 const logsTitleEl = document.getElementById("logs-title");
+let todayAdminOccasion: { id: string; date: string; open: number } | null = null;
+const adminStatsOccasionLabel = document.getElementById("admin-stats-occasion-label");
+const adminStatsOccasionSelect = document.getElementById("admin-stats-occasion-select") as HTMLSelectElement | null;
 
 const logsListEl = document.getElementById("logs-list");
 const clearLogBtn = document.getElementById("clear-log-btn") as HTMLButtonElement | null;
@@ -175,6 +183,7 @@ const refreshConnectBtn = document.getElementById("refresh-connect-btn") as HTML
 const saleToastEl = document.getElementById("sale-toast");
 const changeSessionBtn = document.getElementById("change-session-btn");
 const shopIntroTextEl = document.getElementById("shop-intro-text");
+const salesOpenIndicatorEl = document.getElementById("sales-open-indicator");
 
 let activeSession: SalesSession | null = null;
 let activeLogDetailId: string | null = null;
@@ -185,6 +194,8 @@ let adminCashierFilter: AdminCashierFilter = "all";
 let saleToastTimerId: number | null = null;
 let isConnectViewLoading = false;
 let lastRegisterSaleActionAt = 0;
+// cached current open occasion (null if none)
+(window as any).__currentOpenOccasion = null as null | { id: string; date: string; open: number };
 
 if (!shopListEl || !totalItemsEl || !totalPriceEl || !registerSaleBtn) {
   throw new Error("Expected shop elements are missing from the page.");
@@ -432,6 +443,16 @@ async function apiRequest<T>(path: string, init?: RequestInit, authToken?: strin
   return data as T;
 }
 
+async function fetchCurrentOccasion(): Promise<void> {
+  try {
+    const data = await apiRequest<null | { id: string; date: string; open: number }>("/occasions/current");
+    (window as any).__currentOpenOccasion = data ?? null;
+    renderSalesOpenIndicator();
+  } catch {
+    // ignore failures; keep previous value
+  }
+}
+
 function findItem(id: ItemId): ShopItem {
   const item = items.find((entry) => entry.id === id);
   if (!item) {
@@ -509,26 +530,7 @@ function matchesCurrentWeekAndCashier(entry: SalesLogEntry, session: SalesSessio
   );
 }
 
-function filterLogsForAdmin(
-  logs: SalesLogEntry[],
-  seasonYear: number,
-  seasonWeek: number,
-  scope: StatsScope,
-  cashierFilter: AdminCashierFilter,
-): SalesLogEntry[] {
-  return logs.filter((entry) => {
-    if (scope === "week" && (entry.seasonYear !== seasonYear || entry.seasonWeek !== seasonWeek)) {
-      return false;
-    }
-    if (scope === "season" && entry.seasonYear !== seasonYear) {
-      return false;
-    }
-    if (cashierFilter !== "all" && entry.cashierNumber !== Number(cashierFilter)) {
-      return false;
-    }
-    return true;
-  });
-}
+
 
 function mapServerLogs(response: SalesLogResponse): SalesLogEntry[] {
   return response.sales.map((sale) => ({
@@ -635,19 +637,22 @@ async function syncPendingSales(): Promise<void> {
 
     for (const pendingSale of pendingSales) {
       try {
-        await apiRequest("/sales", {
-          method: "POST",
-          body: JSON.stringify(buildSalePayload(pendingSale.entry)),
-        });
+          // If there is no currently open occasion, post in test mode so clients can still exercise the UI
+          const currentOcc = (window as any).__currentOpenOccasion as null | { id: string; date: string; open: number };
+          const salesPath = currentOcc ? "/sales" : "/sales?test=1";
+          await apiRequest(salesPath, {
+            method: "POST",
+            body: JSON.stringify(buildSalePayload(pendingSale.entry)),
+          });
         remaining = remaining.filter((item) => item.entry.id !== pendingSale.entry.id);
         savePendingSales(remaining);
         syncedAny = true;
       } catch (error) {
-        if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
-          remaining = remaining.filter((item) => item.entry.id !== pendingSale.entry.id);
-          savePendingSales(remaining);
-          continue;
-        }
+          if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+            remaining = remaining.filter((item) => item.entry.id !== pendingSale.entry.id);
+            savePendingSales(remaining);
+            continue;
+          }
         break;
       }
     }
@@ -705,7 +710,7 @@ async function renderStats(): Promise<void> {
 
   const session = activeSession;
   const pendingStats = aggregateLogs(getPendingEntries().filter((entry) => matchesCurrentWeekAndCashier(entry, session)));
-  const baseContext = `Din statistik for säsong ${session.seasonYear} vecka ${session.seasonWeek}, kassa ${session.cashierNumber}.`;
+  const baseContext = `Din statistik för ${formatCurrentDisplayDate()}, kassa ${session.cashierNumber}.`;
 
   try {
     const response = await apiRequest<CashierStatsResponse>(`/stats/cashier/current?cashierNumber=${session.cashierNumber}`);
@@ -855,7 +860,7 @@ function renderLogsFromEntries(logs: SalesLogEntry[]): void {
         <div class="log-summary">
           <div>
             <strong>${date}</strong>
-            <div>${entry.salespersonName} - Säsong ${entry.seasonYear} vecka ${entry.seasonWeek} - Kassa ${entry.cashierNumber}</div>
+            <div>${entry.salespersonName} - Datum ${new Date(entry.timestamp).toLocaleDateString("sv-SE")} - Kassa ${entry.cashierNumber}</div>
             <div>${entry.totalItems} varor - ${entry.totalPrice} kr</div>
           </div>
           <button class="details-toggle-btn" type="button">Visa</button>
@@ -896,13 +901,18 @@ function handleAdminUnauthorized(): void {
   syncSessionUI();
 }
 
-async function loadAdminLogs(session: SalesSession): Promise<SalesLogEntry[]> {
+async function loadAdminLogs(session: SalesSession, scope = "current_occasion", occasionId?: string): Promise<SalesLogEntry[]> {
   if (session.role !== "admin" || !session.authToken) {
     return getPendingEntries();
   }
 
   try {
-    const response = await apiRequest<SalesLogResponse>("/sales-log?scope=all&cashierNumber=all&limit=500", undefined, session.authToken);
+    const params = new URLSearchParams();
+    params.set("scope", scope);
+    params.set("cashierNumber", "all");
+    params.set("limit", "500");
+    if (occasionId) params.set("occasionId", occasionId);
+    const response = await apiRequest<SalesLogResponse>(`/sales-log?${params.toString()}`, undefined, session.authToken);
     const serverLogs = mapServerLogs(response);
     saveServerSalesCache(serverLogs);
     return mergeLogs(serverLogs, getPendingEntries());
@@ -929,21 +939,116 @@ async function refreshAdminData(): Promise<void> {
 
   try {
     const session = activeSession;
-    const allLogs = await loadAdminLogs(session);
-    if (activeSession !== session) {
-      return;
-    }
 
-    const scope = (adminScopeSelect?.value ?? "week") as StatsScope;
-    const scopeLogs = filterLogsForAdmin(allLogs, session.seasonYear, session.seasonWeek, scope, "all");
+    const scope = (adminScopeSelect?.value ?? "current_occasion") as StatsScope;
+    const occasionId = adminStatsOccasionSelect?.value ?? undefined;
+    const scopeLogs = await loadAdminLogs(session, scope, occasionId);
     const visibleLogs = adminCashierFilter === "all"
       ? scopeLogs
       : scopeLogs.filter((entry) => entry.cashierNumber === Number(adminCashierFilter));
     renderAdminStatsFromEntries(visibleLogs, scopeLogs);
     renderLogsFromEntries(visibleLogs);
+    await loadAndRenderTodayOccasion();
   } finally {
     isAdminRefreshInFlight = false;
   }
+}
+
+async function loadAndRenderTodayOccasion(): Promise<void> {
+  if (!activeSession || activeSession.role !== "admin" || !activeSession.authToken) return;
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const resp = await apiRequest<Array<{ id: string; date: string; open: number }>>(
+      `/api/occasions?date=${encodeURIComponent(today)}`,
+      undefined,
+      activeSession.authToken,
+    );
+    todayAdminOccasion = resp.length > 0 ? resp[0] : null;
+  } catch (err) {
+    todayAdminOccasion = null;
+  }
+  renderTodayOccasionStatus();
+}
+
+function renderTodayOccasionStatus(): void {
+  if (!adminOccasionStatusEl) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (!todayAdminOccasion) {
+    adminOccasionStatusEl.textContent = `${today} (Ej öppnad)`;
+    adminOpenOccasionBtn?.removeAttribute("disabled");
+    adminCloseOccasionBtn?.setAttribute("disabled", "true");
+    return;
+  }
+
+  if (todayAdminOccasion.open) {
+    adminOccasionStatusEl.textContent = `${todayAdminOccasion.date} (Öppen)`;
+    adminOpenOccasionBtn?.setAttribute("disabled", "true");
+    adminCloseOccasionBtn?.removeAttribute("disabled");
+  } else {
+    adminOccasionStatusEl.textContent = `${todayAdminOccasion.date} (Stängd)`;
+    adminOpenOccasionBtn?.removeAttribute("disabled");
+    adminCloseOccasionBtn?.setAttribute("disabled", "true");
+  }
+}
+
+function renderSalesOpenIndicator(): void {
+  if (!salesOpenIndicatorEl) return;
+  const current = (window as any).__currentOpenOccasion as null | { id: string; date: string; open: number };
+  salesOpenIndicatorEl.innerHTML = "";
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  if (current && current.open) {
+    salesOpenIndicatorEl.classList.remove("closed");
+    salesOpenIndicatorEl.classList.add("open");
+    salesOpenIndicatorEl.appendChild(dot);
+    salesOpenIndicatorEl.appendChild(document.createTextNode(`Försäljning öppen`));
+    salesOpenIndicatorEl.setAttribute("title", "Försäljning öppen");
+  } else {
+    salesOpenIndicatorEl.classList.remove("open");
+    salesOpenIndicatorEl.classList.add("closed");
+    salesOpenIndicatorEl.appendChild(dot);
+    salesOpenIndicatorEl.appendChild(document.createTextNode("Försäljning stängd"));
+    salesOpenIndicatorEl.setAttribute("title", "Ingen öppen försäljning");
+  }
+}
+
+async function openTodayOccasion(): Promise<void> {
+  if (!activeSession || activeSession.role !== "admin" || !activeSession.authToken) return;
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    await apiRequest(
+      "/occasions/open",
+      { method: "POST", body: JSON.stringify({ date: today }) },
+      activeSession.authToken,
+    );
+    await loadAndRenderTodayOccasion();
+    await fetchCurrentOccasion();
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) handleAdminUnauthorized();
+  }
+}
+
+async function closeTodayOccasion(): Promise<void> {
+  if (!todayAdminOccasion || !activeSession || activeSession.role !== "admin" || !activeSession.authToken) return;
+  try {
+    await apiRequest(
+      `/occasions/${encodeURIComponent(todayAdminOccasion.id)}/close`,
+      { method: "POST" },
+      activeSession.authToken,
+    );
+    await loadAndRenderTodayOccasion();
+    await fetchCurrentOccasion();
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) handleAdminUnauthorized();
+  }
+}
+
+function formatCurrentDisplayDate(): string {
+  const current = (window as any).__currentOpenOccasion as null | { id: string; date: string; open: number };
+  if (current?.open) {
+    return current.date;
+  }
+  return new Date().toISOString().slice(0, 10);
 }
 
 function renderSessionLabel(): void {
@@ -954,19 +1059,19 @@ function renderSessionLabel(): void {
     activeSessionLabel.textContent = "";
     return;
   }
+  const displayDate = formatCurrentDisplayDate();
   if (activeSession.role === "admin") {
-    activeSessionLabel.textContent = `Admin - Säsong ${activeSession.seasonYear} vecka ${activeSession.seasonWeek}`;
+    activeSessionLabel.textContent = `Admin - ${displayDate}`;
     return;
   }
-  activeSessionLabel.textContent = `Inloggad: ${activeSession.salespersonName} - Säsong ${activeSession.seasonYear} vecka ${activeSession.seasonWeek} - Kassa ${activeSession.cashierNumber}`;
+  activeSessionLabel.textContent = `Inloggad: ${activeSession.salespersonName} - ${displayDate} - Kassa ${activeSession.cashierNumber}`;
 }
 
 function renderStartupPeriod(): void {
   if (!currentSeasonWeekEl) {
     return;
   }
-  const current = getCurrentSeasonWeek();
-  currentSeasonWeekEl.textContent = `${current.seasonYear} + vecka ${current.seasonWeek}`;
+  currentSeasonWeekEl.textContent = new Date().toISOString().slice(0, 10);
 }
 
 function renderSyncStatus(): void {
@@ -1133,6 +1238,7 @@ function syncRoleAccessUI(): void {
   if (viewShopBtn) viewShopBtn.hidden = isAdmin;
   if (viewStatsBtn) viewStatsBtn.hidden = isAdmin;
   if (viewConnectBtn) viewConnectBtn.hidden = !isAdmin;
+  if (viewAdminOccasionsBtn) viewAdminOccasionsBtn.hidden = !isAdmin;
   if (viewAdminStatsBtn) viewAdminStatsBtn.hidden = !isAdmin;
   if (viewLogsBtn) viewLogsBtn.hidden = !isAdmin;
   if (clearLogBtn) clearLogBtn.hidden = !isAdmin;
@@ -1150,13 +1256,14 @@ function syncSessionUI(): void {
   renderSyncStatus();
 }
 
-function showView(view: "shop" | "stats" | "connect" | "admin" | "logs"): void {
+function showView(view: "shop" | "stats" | "connect" | "admin" | "occasions" | "logs"): void {
   if (shopSection) {
     shopSection.hidden = view !== "shop" || activeSession?.role === "admin";
   }
   if (statsPage) statsPage.hidden = view !== "stats";
   if (connectPage) connectPage.hidden = view !== "connect";
   if (adminStatsPage) adminStatsPage.hidden = view !== "admin";
+  if (adminOccasionsPage) adminOccasionsPage.hidden = view !== "occasions";
   if (logsPage) logsPage.hidden = view !== "logs";
 }
 
@@ -1252,6 +1359,14 @@ startupAdminPinInput?.addEventListener("keydown", (event) => {
   }
 });
 
+adminOpenOccasionBtn?.addEventListener("click", () => {
+  void openTodayOccasion();
+});
+
+adminCloseOccasionBtn?.addEventListener("click", () => {
+  void closeTodayOccasion();
+});
+
 startupForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   const formData = new FormData(startupForm);
@@ -1318,6 +1433,15 @@ viewConnectBtn?.addEventListener("click", () => {
   }
   showView("connect");
   void renderConnectPage(true);
+  if (modeButtons) modeButtons.hidden = true;
+  if (cogBtn) cogBtn.setAttribute("aria-expanded", "false");
+});
+
+viewAdminOccasionsBtn?.addEventListener("click", () => {
+  if (activeSession?.role !== "admin") {
+    return;
+  }
+  showView("occasions");
   if (modeButtons) modeButtons.hidden = true;
   if (cogBtn) cogBtn.setAttribute("aria-expanded", "false");
 });
@@ -1444,6 +1568,34 @@ registerSaleBtn.addEventListener("touchend", (event) => {
 }, { passive: false });
 
 adminScopeSelect?.addEventListener("change", () => {
+  // Show occasion selector when 'occasion' scope is chosen
+  const val = adminScopeSelect?.value;
+  if (val === "occasion") {
+    if (adminStatsOccasionLabel) adminStatsOccasionLabel.hidden = false;
+    // load occasions for selection
+    void (async () => {
+      if (!activeSession || activeSession.role !== "admin" || !activeSession.authToken) return;
+      try {
+        const resp = await apiRequest<Array<{ id: string; date: string; open: number }>>("/api/occasions", undefined, activeSession.authToken);
+        if (!adminStatsOccasionSelect) return;
+        adminStatsOccasionSelect.innerHTML = "";
+        resp.forEach((occ) => {
+          const opt = document.createElement("option");
+          opt.value = occ.id;
+          opt.textContent = `${occ.date}${occ.open ? " (Öppen)" : ""}`;
+          adminStatsOccasionSelect.appendChild(opt);
+        });
+      } catch {
+        // ignore
+      }
+    })();
+  } else {
+    if (adminStatsOccasionLabel) adminStatsOccasionLabel.hidden = true;
+  }
+  void refreshAdminData();
+});
+
+adminStatsOccasionSelect?.addEventListener("change", () => {
   void refreshAdminData();
 });
 
@@ -1477,6 +1629,7 @@ window.setInterval(() => {
   if (activeSession?.role === "admin") {
     void refreshAdminData();
   }
+  void fetchCurrentOccasion();
 }, CLIENT_SYNC_INTERVAL_MS);
 
 activeSession = loadActiveSession();
@@ -1488,3 +1641,4 @@ render();
 void syncPendingSales();
 void renderStats();
 void refreshAdminData();
+void fetchCurrentOccasion();
