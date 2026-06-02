@@ -194,14 +194,9 @@
             <label class="admin-control" for="admin-scope-select">
               <span>Period</span>
               <select id="admin-scope-select">
-                <option value="current_occasion">Aktuellt säljpass</option>
-                <option value="occasion">Valt säljpass</option>
+                <option value="today">Idag</option>
                 <option value="year">I år</option>
               </select>
-            </label>
-            <label class="admin-control" id="admin-stats-occasion-label" hidden>
-              <span>Välj säljpass</span>
-              <select id="admin-stats-occasion-select" style="min-width:200px"></select>
             </label>
           </div>
           <div class="summary-row" style="margin-top:8px;">
@@ -222,10 +217,13 @@
           <div class="admin-controls">
             <label class="admin-control">
               <span>Idag</span>
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <div id="admin-occasion-status" style="font-weight:700;color:var(--muted);margin-right:6px">-</div>
-                <button id="admin-open-occasion-btn" class="start-session-btn" type="button">Öppna</button>
-                <button id="admin-close-occasion-btn" class="reset-btn" type="button">Stäng</button>
+              <div class="occasion-toggle-row">
+                <label class="switch-control" for="admin-occasion-toggle">
+                  <input id="admin-occasion-toggle" type="checkbox" role="switch" aria-label="Öppna eller stäng dagens försäljningspass" />
+                  <span class="switch-track" aria-hidden="true"></span>
+                  <span id="admin-occasion-toggle-label" class="switch-text">Stängd</span>
+                </label>
+                <div id="admin-occasion-status" class="occasion-status">-</div>
               </div>
             </label>
           </div>
@@ -247,9 +245,18 @@
         </section>
 
         <section id="logs-page" hidden style="margin-top:18px;">
+          <div class="admin-controls" style="margin-bottom:10px;">
+            <label class="admin-control" for="logs-scope-select">
+              <span>Period</span>
+              <select id="logs-scope-select">
+                <option value="today">Idag</option>
+                <option value="year">I år</option>
+              </select>
+            </label>
+          </div>
           <div class="logs-header">
             <h2 id="logs-title">Säljlogg</h2>
-            <button id="clear-log-btn" class="clear-log-btn">Töm loggen</button>
+            <button id="clear-log-btn" class="clear-log-btn">Töm dagens logg</button>
           </div>
           <div id="logs-list" style="margin-top:8px"></div>
         </section>

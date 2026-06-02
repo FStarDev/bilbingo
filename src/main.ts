@@ -11,7 +11,7 @@ window.__THIN_CLIENT_BOOTED = true;
 document.getElementById("startup-error")?.setAttribute("hidden", "");
 
 type ItemId = "storbingo" | "rovaren" | "freeplay" | "fiftyfifty";
-type StatsScope = "week" | "season" | "all";
+type StatsScope = "week" | "season" | "all" | "today" | "occasion" | "current_occasion" | "year";
 type AdminCashierFilter = "all" | "1" | "2" | "3";
 
 type ShopItem = {
@@ -149,17 +149,16 @@ const productTotalsEl = document.getElementById("product-totals");
 const totalRevenueEl = document.getElementById("total-revenue");
 
 const adminScopeSelect = document.querySelector<HTMLSelectElement>("#admin-scope-select");
+const logsScopeSelect = document.querySelector<HTMLSelectElement>("#logs-scope-select");
 const adminTotalCustomersEl = document.getElementById("admin-total-customers");
 const adminProductTotalsEl = document.getElementById("admin-product-totals");
 const adminTotalRevenueEl = document.getElementById("admin-total-revenue");
 const adminCashierBreakdownEl = document.getElementById("admin-cashier-breakdown");
-const adminOpenOccasionBtn = document.getElementById("admin-open-occasion-btn") as HTMLButtonElement | null;
-const adminCloseOccasionBtn = document.getElementById("admin-close-occasion-btn") as HTMLButtonElement | null;
+const adminOccasionToggleEl = document.getElementById("admin-occasion-toggle") as HTMLInputElement | null;
+const adminOccasionToggleLabelEl = document.getElementById("admin-occasion-toggle-label");
 const adminOccasionStatusEl = document.getElementById("admin-occasion-status");
 const logsTitleEl = document.getElementById("logs-title");
 let todayAdminOccasion: { id: string; date: string; open: number } | null = null;
-const adminStatsOccasionLabel = document.getElementById("admin-stats-occasion-label");
-const adminStatsOccasionSelect = document.getElementById("admin-stats-occasion-select") as HTMLSelectElement | null;
 
 const logsListEl = document.getElementById("logs-list");
 const clearLogBtn = document.getElementById("clear-log-btn") as HTMLButtonElement | null;
@@ -184,6 +183,7 @@ const saleToastEl = document.getElementById("sale-toast");
 const changeSessionBtn = document.getElementById("change-session-btn");
 const shopIntroTextEl = document.getElementById("shop-intro-text");
 const salesOpenIndicatorEl = document.getElementById("sales-open-indicator");
+type AppView = "shop" | "stats" | "connect" | "admin" | "occasions" | "logs";
 
 let activeSession: SalesSession | null = null;
 let activeLogDetailId: string | null = null;
@@ -191,9 +191,11 @@ let isSyncInFlight = false;
 let isAdminRefreshInFlight = false;
 let backendReachable = true;
 let adminCashierFilter: AdminCashierFilter = "all";
+let adminScopeFilterValue = "today";
 let saleToastTimerId: number | null = null;
 let isConnectViewLoading = false;
 let lastRegisterSaleActionAt = 0;
+let currentView: AppView = "shop";
 // cached current open occasion (null if none)
 (window as any).__currentOpenOccasion = null as null | { id: string; date: string; open: number };
 
@@ -389,12 +391,6 @@ function loadServerSalesCache(): SalesLogEntry[] {
 
 function saveServerSalesCache(logs: SalesLogEntry[]): void {
   saveJson(SERVER_SALES_CACHE_KEY, logs);
-}
-
-function removeAllLocalSalesData(): void {
-  localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem(OUTBOX_KEY);
-  localStorage.removeItem(SERVER_SALES_CACHE_KEY);
 }
 
 function getPendingEntries(): SalesLogEntry[] {
@@ -750,9 +746,30 @@ function renderLogsTitle(): void {
     return;
   }
 
-  logsTitleEl.textContent = adminCashierFilter === "all"
-    ? "Säljlogg - Alla kassor"
-    : `Säljlogg - Kassa ${adminCashierFilter}`;
+  const selectedScopeLabel =
+    adminScopeSelect?.selectedOptions?.[0]?.textContent?.trim() ||
+    logsScopeSelect?.selectedOptions?.[0]?.textContent?.trim() ||
+    "Idag";
+  const selectedCashierLabel = adminCashierFilter === "all"
+    ? "Alla kassor"
+    : `Kassa ${adminCashierFilter}`;
+
+  logsTitleEl.textContent = `Säljlogg - ${selectedScopeLabel}, ${selectedCashierLabel}`;
+}
+
+function setAdminScopeFilterValue(nextValue: string): void {
+  adminScopeFilterValue = nextValue;
+
+  const selectElements = [adminScopeSelect, logsScopeSelect].filter(
+    (entry): entry is HTMLSelectElement => Boolean(entry),
+  );
+
+  selectElements.forEach((selectEl) => {
+    const optionExists = Array.from(selectEl.options).some((option) => option.value === nextValue);
+    if (optionExists) {
+      selectEl.value = nextValue;
+    }
+  });
 }
 
 function renderAdminStatsFromEntries(logs: SalesLogEntry[], breakdownLogs: SalesLogEntry[]): void {
@@ -925,6 +942,80 @@ async function loadAdminLogs(session: SalesSession, scope = "current_occasion", 
   }
 }
 
+function getAdminStatsSelection(): { scope: StatsScope; occasionId?: string } {
+  const selectedValue = adminScopeFilterValue;
+
+  if (selectedValue === "today") {
+    return { scope: "today" };
+  }
+
+  if (selectedValue === "year") {
+    return { scope: "year" };
+  }
+
+  if (selectedValue.startsWith("occasion:")) {
+    const occasionId = selectedValue.slice("occasion:".length);
+    if (occasionId.length > 0) {
+      return { scope: "occasion", occasionId };
+    }
+  }
+
+  return { scope: "today" };
+}
+
+async function populateAdminScopeOptions(): Promise<void> {
+  if (!activeSession || activeSession.role !== "admin" || !activeSession.authToken) {
+    return;
+  }
+
+  const scopeSelects = [adminScopeSelect, logsScopeSelect].filter(
+    (entry): entry is HTMLSelectElement => Boolean(entry),
+  );
+  if (scopeSelects.length === 0) {
+    return;
+  }
+
+  const previouslySelected = adminScopeFilterValue;
+  const currentYear = new Date().getFullYear();
+
+  let occasions: Array<{ id: string; date: string; open: number }> = [];
+  try {
+    occasions = await apiRequest<Array<{ id: string; date: string; open: number }>>("/occasions", undefined, activeSession.authToken);
+  } catch {
+    occasions = [];
+  }
+
+  const currentYearOccasions = occasions
+    .filter((occasion) => Number(occasion.date.slice(0, 4)) === currentYear)
+    .sort((left, right) => right.date.localeCompare(left.date, "sv"));
+
+  scopeSelects.forEach((selectEl) => {
+    selectEl.innerHTML = "";
+
+    const todayOption = document.createElement("option");
+    todayOption.value = "today";
+    todayOption.textContent = "Idag";
+    selectEl.appendChild(todayOption);
+
+    const yearOption = document.createElement("option");
+    yearOption.value = "year";
+    yearOption.textContent = "I år";
+    selectEl.appendChild(yearOption);
+
+    currentYearOccasions.forEach((occasion) => {
+      const option = document.createElement("option");
+      option.value = `occasion:${occasion.id}`;
+      option.textContent = `${occasion.date}${occasion.open ? " (Öppen)" : ""}`;
+      selectEl.appendChild(option);
+    });
+  });
+
+  const previousStillExists = scopeSelects.some((selectEl) =>
+    Array.from(selectEl.options).some((option) => option.value === previouslySelected),
+  );
+  setAdminScopeFilterValue(previousStillExists ? previouslySelected : "today");
+}
+
 async function refreshAdminData(): Promise<void> {
   if (!activeSession || activeSession.role !== "admin") {
     clearAdminViews();
@@ -940,8 +1031,8 @@ async function refreshAdminData(): Promise<void> {
   try {
     const session = activeSession;
 
-    const scope = (adminScopeSelect?.value ?? "current_occasion") as StatsScope;
-    const occasionId = adminStatsOccasionSelect?.value ?? undefined;
+    await populateAdminScopeOptions();
+    const { scope, occasionId } = getAdminStatsSelection();
     const scopeLogs = await loadAdminLogs(session, scope, occasionId);
     const visibleLogs = adminCashierFilter === "all"
       ? scopeLogs
@@ -959,7 +1050,7 @@ async function loadAndRenderTodayOccasion(): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   try {
     const resp = await apiRequest<Array<{ id: string; date: string; open: number }>>(
-      `/api/occasions?date=${encodeURIComponent(today)}`,
+      `/occasions?date=${encodeURIComponent(today)}`,
       undefined,
       activeSession.authToken,
     );
@@ -975,19 +1066,34 @@ function renderTodayOccasionStatus(): void {
   const today = new Date().toISOString().slice(0, 10);
   if (!todayAdminOccasion) {
     adminOccasionStatusEl.textContent = `${today} (Ej öppnad)`;
-    adminOpenOccasionBtn?.removeAttribute("disabled");
-    adminCloseOccasionBtn?.setAttribute("disabled", "true");
+    if (adminOccasionToggleEl) {
+      adminOccasionToggleEl.checked = false;
+      adminOccasionToggleEl.setAttribute("aria-checked", "false");
+    }
+    if (adminOccasionToggleLabelEl) {
+      adminOccasionToggleLabelEl.textContent = "Stängd";
+    }
     return;
   }
 
   if (todayAdminOccasion.open) {
     adminOccasionStatusEl.textContent = `${todayAdminOccasion.date} (Öppen)`;
-    adminOpenOccasionBtn?.setAttribute("disabled", "true");
-    adminCloseOccasionBtn?.removeAttribute("disabled");
+    if (adminOccasionToggleEl) {
+      adminOccasionToggleEl.checked = true;
+      adminOccasionToggleEl.setAttribute("aria-checked", "true");
+    }
+    if (adminOccasionToggleLabelEl) {
+      adminOccasionToggleLabelEl.textContent = "Öppen";
+    }
   } else {
     adminOccasionStatusEl.textContent = `${todayAdminOccasion.date} (Stängd)`;
-    adminOpenOccasionBtn?.removeAttribute("disabled");
-    adminCloseOccasionBtn?.setAttribute("disabled", "true");
+    if (adminOccasionToggleEl) {
+      adminOccasionToggleEl.checked = false;
+      adminOccasionToggleEl.setAttribute("aria-checked", "false");
+    }
+    if (adminOccasionToggleLabelEl) {
+      adminOccasionToggleLabelEl.textContent = "Stängd";
+    }
   }
 }
 
@@ -1010,6 +1116,18 @@ function renderSalesOpenIndicator(): void {
     salesOpenIndicatorEl.appendChild(document.createTextNode("Försäljning stängd"));
     salesOpenIndicatorEl.setAttribute("title", "Ingen öppen försäljning");
   }
+
+  syncSalesOpenIndicatorVisibility();
+}
+
+function syncSalesOpenIndicatorVisibility(): void {
+  if (!salesOpenIndicatorEl) {
+    return;
+  }
+
+  // Hide only on the shop view; show on admin pages.
+  const shouldHide = currentView === "shop";
+  salesOpenIndicatorEl.hidden = shouldHide;
 }
 
 async function openTodayOccasion(): Promise<void> {
@@ -1245,6 +1363,7 @@ function syncRoleAccessUI(): void {
   if (shopSection) shopSection.hidden = isAdmin;
   if (shopIntroTextEl) shopIntroTextEl.hidden = isAdmin;
   if (syncStatusEl) syncStatusEl.hidden = isAdmin;
+  syncSalesOpenIndicatorVisibility();
 }
 
 function syncSessionUI(): void {
@@ -1256,7 +1375,8 @@ function syncSessionUI(): void {
   renderSyncStatus();
 }
 
-function showView(view: "shop" | "stats" | "connect" | "admin" | "occasions" | "logs"): void {
+function showView(view: AppView): void {
+  currentView = view;
   if (shopSection) {
     shopSection.hidden = view !== "shop" || activeSession?.role === "admin";
   }
@@ -1265,6 +1385,7 @@ function showView(view: "shop" | "stats" | "connect" | "admin" | "occasions" | "
   if (adminStatsPage) adminStatsPage.hidden = view !== "admin";
   if (adminOccasionsPage) adminOccasionsPage.hidden = view !== "occasions";
   if (logsPage) logsPage.hidden = view !== "logs";
+  syncSalesOpenIndicatorVisibility();
 }
 
 async function loginAsAdminWithPin(pinRaw: string): Promise<void> {
@@ -1359,12 +1480,26 @@ startupAdminPinInput?.addEventListener("keydown", (event) => {
   }
 });
 
-adminOpenOccasionBtn?.addEventListener("click", () => {
-  void openTodayOccasion();
-});
+adminOccasionToggleEl?.addEventListener("change", () => {
+  void (async () => {
+    if (!adminOccasionToggleEl) {
+      return;
+    }
 
-adminCloseOccasionBtn?.addEventListener("click", () => {
-  void closeTodayOccasion();
+    const nextOpen = adminOccasionToggleEl.checked;
+    adminOccasionToggleEl.disabled = true;
+
+    try {
+      if (nextOpen) {
+        await openTodayOccasion();
+      } else {
+        await closeTodayOccasion();
+      }
+    } finally {
+      adminOccasionToggleEl.disabled = false;
+      renderTodayOccasionStatus();
+    }
+  })();
 });
 
 startupForm?.addEventListener("submit", (event) => {
@@ -1470,13 +1605,13 @@ clearLogBtn?.addEventListener("click", async () => {
   if (activeSession?.role !== "admin" || !activeSession.authToken) {
     return;
   }
-  if (!window.confirm("Ar du saker pa att du vill tomma loggen? Detta rensar bade servern och lokal cache.")) {
+  if (!window.confirm("Är du säker på att du vill tömma dagens logg? Dagens försäljningar kommer att rensas.")) {
     return;
   }
 
   try {
-    await apiRequest<void>("/sales", { method: "DELETE" }, activeSession.authToken);
-    removeAllLocalSalesData();
+    await apiRequest<void>("/sales/today", { method: "DELETE" }, activeSession.authToken);
+    // Keep historical local cache; only today's server entries are deleted.
     activeLogDetailId = null;
     resetCurrentSale();
     await refreshAdminData();
@@ -1503,7 +1638,6 @@ cogBtn?.addEventListener("click", () => {
   if (isVisible) {
     modeButtons.hidden = true;
     cogBtn.setAttribute("aria-expanded", "false");
-    showView(activeSession?.role === "admin" ? "admin" : "shop");
     return;
   }
   modeButtons.hidden = false;
@@ -1568,34 +1702,12 @@ registerSaleBtn.addEventListener("touchend", (event) => {
 }, { passive: false });
 
 adminScopeSelect?.addEventListener("change", () => {
-  // Show occasion selector when 'occasion' scope is chosen
-  const val = adminScopeSelect?.value;
-  if (val === "occasion") {
-    if (adminStatsOccasionLabel) adminStatsOccasionLabel.hidden = false;
-    // load occasions for selection
-    void (async () => {
-      if (!activeSession || activeSession.role !== "admin" || !activeSession.authToken) return;
-      try {
-        const resp = await apiRequest<Array<{ id: string; date: string; open: number }>>("/api/occasions", undefined, activeSession.authToken);
-        if (!adminStatsOccasionSelect) return;
-        adminStatsOccasionSelect.innerHTML = "";
-        resp.forEach((occ) => {
-          const opt = document.createElement("option");
-          opt.value = occ.id;
-          opt.textContent = `${occ.date}${occ.open ? " (Öppen)" : ""}`;
-          adminStatsOccasionSelect.appendChild(opt);
-        });
-      } catch {
-        // ignore
-      }
-    })();
-  } else {
-    if (adminStatsOccasionLabel) adminStatsOccasionLabel.hidden = true;
-  }
+  setAdminScopeFilterValue(adminScopeSelect.value);
   void refreshAdminData();
 });
 
-adminStatsOccasionSelect?.addEventListener("change", () => {
+logsScopeSelect?.addEventListener("change", () => {
+  setAdminScopeFilterValue(logsScopeSelect.value);
   void refreshAdminData();
 });
 
@@ -1633,6 +1745,7 @@ window.setInterval(() => {
 }, CLIENT_SYNC_INTERVAL_MS);
 
 activeSession = loadActiveSession();
+setAdminScopeFilterValue(adminScopeSelect?.value ?? logsScopeSelect?.value ?? "today");
 setAdminCashierFilter("all", false);
 renderStartupPeriod();
 syncSessionUI();

@@ -29,7 +29,7 @@ type AdminLoginPayload = {
   pin: string;
 };
 
-type StatsScope = "week" | "season" | "all" | "occasion" | "current_occasion" | "year";
+type StatsScope = "week" | "season" | "all" | "occasion" | "current_occasion" | "year" | "today";
 
 type Period = {
   seasonYear: number;
@@ -139,7 +139,7 @@ function parseAdminLoginPayload(body: unknown): AdminLoginPayload | null {
 }
 
 function parseScope(raw: unknown): StatsScope {
-  if (raw === "season" || raw === "all" || raw === "week" || raw === "occasion" || raw === "current_occasion" || raw === "year") {
+  if (raw === "season" || raw === "all" || raw === "week" || raw === "occasion" || raw === "current_occasion" || raw === "year" || raw === "today") {
     return raw as StatsScope;
   }
   return "week";
@@ -199,6 +199,10 @@ function buildSalesWhere(scope: StatsScope, cashierNumber: number | null, period
   } else if (scope === "year") {
     clauses.push("s.season_year = ?");
     params.push(period.seasonYear);
+  } else if (scope === "today") {
+    const today = new Date().toISOString().slice(0, 10);
+    clauses.push("date(s.sale_timestamp / 1000, 'unixepoch', 'localtime') = ?");
+    params.push(today);
   } else if (scope === "current_occasion") {
     // filter by currently open occasion
     clauses.push("s.occasion_id = (SELECT id FROM occasions WHERE open = 1 LIMIT 1)");
@@ -915,6 +919,44 @@ async function main() {
     try {
       await db.run("DELETE FROM sale_items");
       await db.run("DELETE FROM sales");
+      await db.exec("COMMIT");
+    } catch (error) {
+      await db.exec("ROLLBACK");
+      throw error;
+    }
+
+    response.status(204).end();
+  });
+
+  app.delete("/api/sales/today", async (request: Request, response: Response) => {
+    if (!(await requireAdmin(request, response, db))) {
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    await db.exec("BEGIN");
+    try {
+      await db.run(
+        `
+          DELETE FROM sale_items
+          WHERE sale_id IN (
+            SELECT id
+            FROM sales
+            WHERE date(sale_timestamp / 1000, 'unixepoch', 'localtime') = ?
+          )
+        `,
+        today,
+      );
+
+      await db.run(
+        `
+          DELETE FROM sales
+          WHERE date(sale_timestamp / 1000, 'unixepoch', 'localtime') = ?
+        `,
+        today,
+      );
+
       await db.exec("COMMIT");
     } catch (error) {
       await db.exec("ROLLBACK");
