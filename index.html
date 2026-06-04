@@ -202,6 +202,7 @@
             </label>
           </div>
           <div class="admin-summary-panel">
+            <p id="admin-occasion-meta" class="info-note admin-occasion-meta-row" hidden></p>
             <div class="summary-row">
               <span>Totalt antal kunder</span>
               <strong id="admin-total-customers">0</strong>
@@ -217,18 +218,25 @@
         </section>
 
         <section id="admin-occasions-page" hidden style="margin-top:18px;">
-          <h2>Försäljningspass</h2>
+          <div class="admin-occasion-header">
+            <h2>Försäljningspass</h2>
+            <div class="occasion-toggle-row occasion-toggle-row-header">
+              <label class="switch-control" for="admin-occasion-toggle">
+                <input id="admin-occasion-toggle" type="checkbox" role="switch" aria-label="Öppna eller stäng dagens försäljningspass" />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span id="admin-occasion-toggle-label" class="switch-text">Stängd</span>
+              </label>
+              <div id="admin-occasion-status" class="occasion-status">-</div>
+            </div>
+          </div>
           <div class="admin-controls">
-            <label class="admin-control">
-              <span>Idag</span>
-              <div class="occasion-toggle-row">
-                <label class="switch-control" for="admin-occasion-toggle">
-                  <input id="admin-occasion-toggle" type="checkbox" role="switch" aria-label="Öppna eller stäng dagens försäljningspass" />
-                  <span class="switch-track" aria-hidden="true"></span>
-                  <span id="admin-occasion-toggle-label" class="switch-text">Stängd</span>
-                </label>
-                <div id="admin-occasion-status" class="occasion-status">-</div>
-              </div>
+            <label class="admin-control" for="admin-bingo-caller">
+              <span>Utropare</span>
+              <input id="admin-bingo-caller" type="text" autocomplete="name" />
+            </label>
+            <label class="admin-control" for="admin-bingo-responsible">
+              <span>Ansvarig</span>
+              <input id="admin-bingo-responsible" type="text" autocomplete="name" />
             </label>
           </div>
         </section>

@@ -197,6 +197,7 @@ p {
 
 .form-field input,
 .form-field select,
+.admin-control input,
 .admin-control select {
   width: 100%;
   border: 1px solid rgba(255,255,255,0.04);
@@ -222,6 +223,7 @@ p {
 
 .form-field input:focus,
 .form-field select:focus,
+.admin-control input:focus,
 .admin-control select:focus {
   border-color: var(--primary);
   box-shadow: 0 6px 20px rgba(255,106,0,0.12);
@@ -662,6 +664,24 @@ p {
   font-weight: 700;
 }
 
+.admin-occasion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.admin-occasion-header h2 {
+  margin: 0 !important;
+}
+
+.occasion-toggle-row-header {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
 .occasion-toggle-row {
   display: flex;
   align-items: center;
@@ -982,6 +1002,12 @@ p {
 #product-totals,
 #logs-list {
   margin-top: 8px !important;
+}
+
+.admin-occasion-meta-row {
+  margin: 0 !important;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 122, 26, 0.1);
 }
 
 #stats-context {

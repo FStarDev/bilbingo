@@ -47,6 +47,8 @@ type Occasion = {
   id: string;
   date: string; // YYYY-MM-DD
   open: number; // 0 or 1
+  bingoCaller: string;
+  bingoResponsible: string;
   createdAt: number;
   closedAt?: number | null;
 };
@@ -351,10 +353,16 @@ async function ensureDatabase(): Promise<Database> {
       id TEXT PRIMARY KEY,
       date TEXT NOT NULL,
       open INTEGER NOT NULL DEFAULT 0,
+      bingo_caller TEXT NOT NULL DEFAULT '',
+      bingo_responsible TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       closed_at INTEGER
     );
   `);
+
+  // Lightweight migration for older DBs created before occasion owner fields existed.
+  await db.exec(`ALTER TABLE occasions ADD COLUMN bingo_caller TEXT NOT NULL DEFAULT ''`).catch(() => undefined);
+  await db.exec(`ALTER TABLE occasions ADD COLUMN bingo_responsible TEXT NOT NULL DEFAULT ''`).catch(() => undefined);
 
   // No automatic migration of old data: user may reset DB via BILBINGO_RESET_DB.
 
@@ -401,7 +409,7 @@ async function main() {
 
     app.get("/api/occasions/current", async (_request: Request, response: Response) => {
       const row = await db.get<Occasion>(`
-        SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+        SELECT id, date, open AS open, bingo_caller AS bingoCaller, bingo_responsible AS bingoResponsible, created_at AS createdAt, closed_at AS closedAt
         FROM occasions
         WHERE open = 1
         ORDER BY date DESC
@@ -414,7 +422,7 @@ async function main() {
       const { date } = request.query;
       if (typeof date === "string" && date.length > 0) {
         const rows = await db.all<Occasion>(`
-          SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+          SELECT id, date, open AS open, bingo_caller AS bingoCaller, bingo_responsible AS bingoResponsible, created_at AS createdAt, closed_at AS closedAt
           FROM occasions
           WHERE date = ?
           ORDER BY created_at DESC
@@ -424,7 +432,7 @@ async function main() {
       }
 
       const rows = await db.all<Occasion>(`
-        SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+        SELECT id, date, open AS open, bingo_caller AS bingoCaller, bingo_responsible AS bingoResponsible, created_at AS createdAt, closed_at AS closedAt
         FROM occasions
         ORDER BY date DESC, created_at DESC
       `);
@@ -435,10 +443,16 @@ async function main() {
       if (!(await requireAdmin(request, response, db))) {
         return;
       }
-      const body = request.body as { date?: string } | undefined;
+      const body = request.body as { date?: string; bingoCaller?: string; bingoResponsible?: string } | undefined;
       const today = typeof body?.date === "string" && body.date.length > 0
         ? body.date
         : new Date().toISOString().slice(0, 10);
+      const bingoCaller = typeof body?.bingoCaller === "string" ? body.bingoCaller.trim() : "";
+      const bingoResponsible = typeof body?.bingoResponsible === "string" ? body.bingoResponsible.trim() : "";
+      if (!bingoCaller || !bingoResponsible) {
+        response.status(400).json({ error: "bingoCaller and bingoResponsible are required." });
+        return;
+      }
       const now = Date.now();
 
       await db.exec("BEGIN");
@@ -450,7 +464,7 @@ async function main() {
         );
 
         const existing = await db.get<Occasion>(`
-          SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+          SELECT id, date, open AS open, bingo_caller AS bingoCaller, bingo_responsible AS bingoResponsible, created_at AS createdAt, closed_at AS closedAt
           FROM occasions
           WHERE date = ?
           LIMIT 1
@@ -458,14 +472,18 @@ async function main() {
 
         if (existing) {
           await db.run(
-            `UPDATE occasions SET open = 1, closed_at = NULL WHERE id = ?`,
+            `UPDATE occasions SET open = 1, bingo_caller = ?, bingo_responsible = ?, closed_at = NULL WHERE id = ?`,
+            bingoCaller,
+            bingoResponsible,
             existing.id,
           );
         } else {
           await db.run(
-            `INSERT INTO occasions (id, date, open, created_at) VALUES (?, ?, 1, ?)`,
+            `INSERT INTO occasions (id, date, open, bingo_caller, bingo_responsible, created_at) VALUES (?, ?, 1, ?, ?, ?)`,
             crypto.randomUUID(),
             today,
+            bingoCaller,
+            bingoResponsible,
             now,
           );
         }
@@ -477,7 +495,7 @@ async function main() {
       }
 
       const row = await db.get<Occasion>(`
-        SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+        SELECT id, date, open AS open, bingo_caller AS bingoCaller, bingo_responsible AS bingoResponsible, created_at AS createdAt, closed_at AS closedAt
         FROM occasions
         WHERE date = ?
         ORDER BY created_at DESC
@@ -493,7 +511,7 @@ async function main() {
 
       const { id } = request.params;
       const occasion = await db.get<Occasion>(`
-        SELECT id, date, open AS open, created_at AS createdAt, closed_at AS closedAt
+        SELECT id, date, open AS open, bingo_caller AS bingoCaller, bingo_responsible AS bingoResponsible, created_at AS createdAt, closed_at AS closedAt
         FROM occasions
         WHERE id = ?
       `, id);

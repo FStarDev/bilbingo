@@ -97,6 +97,14 @@ type ConnectInfoResponse = {
   urls: string[];
 };
 
+type OccasionInfo = {
+  id: string;
+  date: string;
+  open: number;
+  bingoCaller: string;
+  bingoResponsible: string;
+};
+
 class ApiError extends Error {
   status: number;
 
@@ -157,8 +165,12 @@ const adminCashierBreakdownEl = document.getElementById("admin-cashier-breakdown
 const adminOccasionToggleEl = document.getElementById("admin-occasion-toggle") as HTMLInputElement | null;
 const adminOccasionToggleLabelEl = document.getElementById("admin-occasion-toggle-label");
 const adminOccasionStatusEl = document.getElementById("admin-occasion-status");
+const adminBingoCallerInput = document.getElementById("admin-bingo-caller") as HTMLInputElement | null;
+const adminBingoResponsibleInput = document.getElementById("admin-bingo-responsible") as HTMLInputElement | null;
+const adminOccasionMetaEl = document.getElementById("admin-occasion-meta");
 const logsTitleEl = document.getElementById("logs-title");
-let todayAdminOccasion: { id: string; date: string; open: number } | null = null;
+let todayAdminOccasion: OccasionInfo | null = null;
+const adminOccasionById = new Map<string, OccasionInfo>();
 
 const logsListEl = document.getElementById("logs-list");
 const clearLogBtn = document.getElementById("clear-log-btn") as HTMLButtonElement | null;
@@ -197,7 +209,7 @@ let isConnectViewLoading = false;
 let lastRegisterSaleActionAt = 0;
 let currentView: AppView = "shop";
 // cached current open occasion (null if none)
-(window as any).__currentOpenOccasion = null as null | { id: string; date: string; open: number };
+(window as any).__currentOpenOccasion = null as null | OccasionInfo;
 
 if (!shopListEl || !totalItemsEl || !totalPriceEl || !registerSaleBtn) {
   throw new Error("Expected shop elements are missing from the page.");
@@ -441,7 +453,7 @@ async function apiRequest<T>(path: string, init?: RequestInit, authToken?: strin
 
 async function fetchCurrentOccasion(): Promise<void> {
   try {
-    const data = await apiRequest<null | { id: string; date: string; open: number }>("/occasions/current");
+    const data = await apiRequest<null | OccasionInfo>("/occasions/current");
     (window as any).__currentOpenOccasion = data ?? null;
     renderSalesOpenIndicator();
   } catch {
@@ -634,7 +646,7 @@ async function syncPendingSales(): Promise<void> {
     for (const pendingSale of pendingSales) {
       try {
           // If there is no currently open occasion, post in test mode so clients can still exercise the UI
-          const currentOcc = (window as any).__currentOpenOccasion as null | { id: string; date: string; open: number };
+          const currentOcc = (window as any).__currentOpenOccasion as null | OccasionInfo;
           const salesPath = currentOcc ? "/sales" : "/sales?test=1";
           await apiRequest(salesPath, {
             method: "POST",
@@ -770,6 +782,33 @@ function setAdminScopeFilterValue(nextValue: string): void {
       selectEl.value = nextValue;
     }
   });
+
+  renderAdminOccasionMeta();
+}
+
+function renderAdminOccasionMeta(): void {
+  if (!adminOccasionMetaEl) {
+    return;
+  }
+
+  const selectedValue = adminScopeFilterValue;
+  if (selectedValue.startsWith("occasion:")) {
+    const selectedOccasionId = selectedValue.slice("occasion:".length);
+    const selectedOccasion = adminOccasionById.get(selectedOccasionId);
+    if (selectedOccasion) {
+      adminOccasionMetaEl.textContent = `Utropare: ${selectedOccasion.bingoCaller} - Ansvarig: ${selectedOccasion.bingoResponsible}`;
+      adminOccasionMetaEl.hidden = false;
+      return;
+    }
+  }
+
+  if (selectedValue === "today" && todayAdminOccasion) {
+    adminOccasionMetaEl.textContent = `Utropare: ${todayAdminOccasion.bingoCaller} - Ansvarig: ${todayAdminOccasion.bingoResponsible}`;
+    adminOccasionMetaEl.hidden = false;
+    return;
+  }
+
+  adminOccasionMetaEl.hidden = true;
 }
 
 function renderAdminStatsFromEntries(logs: SalesLogEntry[], breakdownLogs: SalesLogEntry[]): void {
@@ -790,11 +829,17 @@ function renderAdminStatsFromEntries(logs: SalesLogEntry[], breakdownLogs: Sales
   if (adminCashierBreakdownEl) {
     adminCashierBreakdownEl.innerHTML = "";
     const byCashier = new Map<number, { customers: number; revenue: number }>();
+    const latestCashierNames = new Map<number, { name: string; timestamp: number }>();
     breakdownLogs.forEach((entry) => {
       const current = byCashier.get(entry.cashierNumber) ?? { customers: 0, revenue: 0 };
       current.customers += 1;
       current.revenue += entry.totalPrice;
       byCashier.set(entry.cashierNumber, current);
+
+      const existingLatest = latestCashierNames.get(entry.cashierNumber);
+      if (!existingLatest || entry.timestamp > existingLatest.timestamp) {
+        latestCashierNames.set(entry.cashierNumber, { name: entry.salespersonName, timestamp: entry.timestamp });
+      }
     });
 
     const allCashierStats = aggregateLogs(breakdownLogs);
@@ -828,6 +873,10 @@ function renderAdminStatsFromEntries(logs: SalesLogEntry[], breakdownLogs: Sales
 
     [1, 2, 3].forEach((cashierNumber) => {
       const current = byCashier.get(cashierNumber) ?? { customers: 0, revenue: 0 };
+      const latestCashierName = latestCashierNames.get(cashierNumber)?.name?.trim() ?? "";
+      const cashierTitle = latestCashierName
+        ? `Kassa ${cashierNumber} - ${latestCashierName}`
+        : `Kassa ${cashierNumber}`;
       const row = document.createElement("div");
       row.className = "cashier-row";
       row.setAttribute("role", "button");
@@ -839,7 +888,7 @@ function renderAdminStatsFromEntries(logs: SalesLogEntry[], breakdownLogs: Sales
       }
       row.innerHTML = `
         <div class="cashier-row-head">
-          <strong>Kassa ${cashierNumber}</strong>
+          <strong>${cashierTitle}</strong>
           ${isCashierActive ? "<span class=\"cashier-selected-badge\">Vald</span>" : ""}
         </div>
         <div>${current.customers} kunder - ${current.revenue} kr</div>
@@ -978,12 +1027,17 @@ async function populateAdminScopeOptions(): Promise<void> {
   const previouslySelected = adminScopeFilterValue;
   const currentYear = new Date().getFullYear();
 
-  let occasions: Array<{ id: string; date: string; open: number }> = [];
+  let occasions: OccasionInfo[] = [];
   try {
-    occasions = await apiRequest<Array<{ id: string; date: string; open: number }>>("/occasions", undefined, activeSession.authToken);
+    occasions = await apiRequest<OccasionInfo[]>("/occasions", undefined, activeSession.authToken);
   } catch {
     occasions = [];
   }
+
+  adminOccasionById.clear();
+  occasions.forEach((occasion) => {
+    adminOccasionById.set(occasion.id, occasion);
+  });
 
   const currentYearOccasions = occasions
     .filter((occasion) => Number(occasion.date.slice(0, 4)) === currentYear)
@@ -1049,23 +1103,33 @@ async function loadAndRenderTodayOccasion(): Promise<void> {
   if (!activeSession || activeSession.role !== "admin" || !activeSession.authToken) return;
   const today = new Date().toISOString().slice(0, 10);
   try {
-    const resp = await apiRequest<Array<{ id: string; date: string; open: number }>>(
+    const resp = await apiRequest<OccasionInfo[]>(
       `/occasions?date=${encodeURIComponent(today)}`,
       undefined,
       activeSession.authToken,
     );
     todayAdminOccasion = resp.length > 0 ? resp[0] : null;
+    if (todayAdminOccasion) {
+      adminOccasionById.set(todayAdminOccasion.id, todayAdminOccasion);
+      if (adminBingoCallerInput && (!adminBingoCallerInput.value.trim() || Boolean(todayAdminOccasion.open))) {
+        adminBingoCallerInput.value = todayAdminOccasion.bingoCaller;
+      }
+      if (adminBingoResponsibleInput && (!adminBingoResponsibleInput.value.trim() || Boolean(todayAdminOccasion.open))) {
+        adminBingoResponsibleInput.value = todayAdminOccasion.bingoResponsible;
+      }
+    }
   } catch (err) {
     todayAdminOccasion = null;
   }
   renderTodayOccasionStatus();
+  renderAdminOccasionMeta();
 }
 
 function renderTodayOccasionStatus(): void {
   if (!adminOccasionStatusEl) return;
   const today = new Date().toISOString().slice(0, 10);
   if (!todayAdminOccasion) {
-    adminOccasionStatusEl.textContent = `${today} (Ej öppnad)`;
+    adminOccasionStatusEl.textContent = today;
     if (adminOccasionToggleEl) {
       adminOccasionToggleEl.checked = false;
       adminOccasionToggleEl.setAttribute("aria-checked", "false");
@@ -1077,7 +1141,7 @@ function renderTodayOccasionStatus(): void {
   }
 
   if (todayAdminOccasion.open) {
-    adminOccasionStatusEl.textContent = `${todayAdminOccasion.date} (Öppen)`;
+    adminOccasionStatusEl.textContent = todayAdminOccasion.date;
     if (adminOccasionToggleEl) {
       adminOccasionToggleEl.checked = true;
       adminOccasionToggleEl.setAttribute("aria-checked", "true");
@@ -1086,7 +1150,7 @@ function renderTodayOccasionStatus(): void {
       adminOccasionToggleLabelEl.textContent = "Öppen";
     }
   } else {
-    adminOccasionStatusEl.textContent = `${todayAdminOccasion.date} (Stängd)`;
+    adminOccasionStatusEl.textContent = todayAdminOccasion.date;
     if (adminOccasionToggleEl) {
       adminOccasionToggleEl.checked = false;
       adminOccasionToggleEl.setAttribute("aria-checked", "false");
@@ -1099,7 +1163,7 @@ function renderTodayOccasionStatus(): void {
 
 function renderSalesOpenIndicator(): void {
   if (!salesOpenIndicatorEl) return;
-  const current = (window as any).__currentOpenOccasion as null | { id: string; date: string; open: number };
+  const current = (window as any).__currentOpenOccasion as null | OccasionInfo;
   salesOpenIndicatorEl.innerHTML = "";
   const dot = document.createElement("span");
   dot.className = "dot";
@@ -1130,13 +1194,13 @@ function syncSalesOpenIndicatorVisibility(): void {
   salesOpenIndicatorEl.hidden = shouldHide;
 }
 
-async function openTodayOccasion(): Promise<void> {
+async function openTodayOccasion(bingoCaller: string, bingoResponsible: string): Promise<void> {
   if (!activeSession || activeSession.role !== "admin" || !activeSession.authToken) return;
   const today = new Date().toISOString().slice(0, 10);
   try {
     await apiRequest(
       "/occasions/open",
-      { method: "POST", body: JSON.stringify({ date: today }) },
+      { method: "POST", body: JSON.stringify({ date: today, bingoCaller, bingoResponsible }) },
       activeSession.authToken,
     );
     await loadAndRenderTodayOccasion();
@@ -1162,7 +1226,7 @@ async function closeTodayOccasion(): Promise<void> {
 }
 
 function formatCurrentDisplayDate(): string {
-  const current = (window as any).__currentOpenOccasion as null | { id: string; date: string; open: number };
+  const current = (window as any).__currentOpenOccasion as null | OccasionInfo;
   if (current?.open) {
     return current.date;
   }
@@ -1517,7 +1581,13 @@ adminOccasionToggleEl?.addEventListener("change", () => {
 
     try {
       if (nextOpen) {
-        await openTodayOccasion();
+        const bingoCaller = adminBingoCallerInput?.value.trim() ?? "";
+        const bingoResponsible = adminBingoResponsibleInput?.value.trim() ?? "";
+        if (!bingoCaller || !bingoResponsible) {
+          window.alert("Ange både Utropare och Ansvarig innan du öppnar försäljningen.");
+          return;
+        }
+        await openTodayOccasion(bingoCaller, bingoResponsible);
       } else {
         await closeTodayOccasion();
       }
@@ -1713,7 +1783,7 @@ registerSaleBtn.addEventListener("click", () => {
     return;
   }
 
-  const currentOcc = (window as any).__currentOpenOccasion as null | { id: string; date: string; open: number };
+  const currentOcc = (window as any).__currentOpenOccasion as null | OccasionInfo;
   if (!currentOcc || !currentOcc.open) {
     showSaleToastError("Ej sparad, försäljning stängd");
     resetCurrentSale();
