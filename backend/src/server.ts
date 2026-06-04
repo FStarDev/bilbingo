@@ -200,7 +200,8 @@ function buildSalesWhere(scope: StatsScope, cashierNumber: number | null, period
     clauses.push("s.season_year = ?");
     params.push(period.seasonYear);
   } else if (scope === "today") {
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     clauses.push("date(s.sale_timestamp / 1000, 'unixepoch', 'localtime') = ?");
     params.push(today);
   } else if (scope === "current_occasion") {
@@ -722,6 +723,8 @@ async function main() {
     }
 
     const period = getCurrentPeriod();
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const totals = await db.get<{
       totalCustomers: number;
       totalRevenue: number;
@@ -731,10 +734,9 @@ async function main() {
           COUNT(*) AS totalCustomers,
           COALESCE(SUM(total_price), 0) AS totalRevenue
         FROM sales
-        WHERE season_year = ? AND season_week = ? AND cashier_number = ?
+        WHERE date(sale_timestamp / 1000, 'unixepoch', 'localtime') = ? AND cashier_number = ?
       `,
-      period.seasonYear,
-      period.seasonWeek,
+      today,
       cashierNumber,
     );
 
@@ -747,12 +749,11 @@ async function main() {
           COALESCE(SUM(si.amount), 0) AS amount
         FROM sale_items si
         JOIN sales s ON s.id = si.sale_id
-        WHERE s.season_year = ? AND s.season_week = ? AND s.cashier_number = ?
+        WHERE date(s.sale_timestamp / 1000, 'unixepoch', 'localtime') = ? AND s.cashier_number = ?
         GROUP BY si.item_id, si.item_name
         ORDER BY si.item_name
       `,
-      period.seasonYear,
-      period.seasonWeek,
+      today,
       cashierNumber,
     );
 

@@ -1333,6 +1333,7 @@ function showSaleToast(totalPrice: number): void {
   }
 
   saleToastEl.textContent = `Köp registrerat - ${totalPrice} kr`;
+  saleToastEl.classList.remove("is-error");
   saleToastEl.hidden = false;
   saleToastEl.classList.remove("is-visible");
 
@@ -1349,6 +1350,31 @@ function showSaleToast(totalPrice: number): void {
     saleToastEl.hidden = true;
     saleToastTimerId = null;
   }, 2000);
+}
+
+function showSaleToastError(message: string): void {
+  if (!saleToastEl) {
+    return;
+  }
+
+  saleToastEl.textContent = message;
+  saleToastEl.classList.add("is-error");
+  saleToastEl.hidden = false;
+  saleToastEl.classList.remove("is-visible");
+
+  void saleToastEl.offsetWidth;
+  saleToastEl.classList.add("is-visible");
+
+  if (saleToastTimerId !== null) {
+    window.clearTimeout(saleToastTimerId);
+  }
+
+  saleToastTimerId = window.setTimeout(() => {
+    saleToastEl.classList.remove("is-visible");
+    saleToastEl.classList.remove("is-error");
+    saleToastEl.hidden = true;
+    saleToastTimerId = null;
+  }, 3000);
 }
 
 function syncRoleAccessUI(): void {
@@ -1684,6 +1710,13 @@ registerSaleBtn.addEventListener("click", () => {
 
   const entry = buildSaleEntryFromCurrent();
   if (!entry) {
+    return;
+  }
+
+  const currentOcc = (window as any).__currentOpenOccasion as null | { id: string; date: string; open: number };
+  if (!currentOcc || !currentOcc.open) {
+    showSaleToastError("Ej sparad, försäljning stängd");
+    resetCurrentSale();
     return;
   }
 
