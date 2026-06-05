@@ -31,6 +31,7 @@
     "@types/express": "^5.0.3",
     "@types/node": "^24.0.1",
     "@types/qrcode": "^1.5.6",
+    "@vitejs/plugin-legacy": "^6.1.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.2",
     "vite": "^6.3.5"

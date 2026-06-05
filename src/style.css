@@ -18,6 +18,7 @@
 }
 
 *::selection {
+  background: rgba(255, 122, 26, 0.28);
   background: color-mix(in srgb, var(--primary) 28%, white);
 }
 
@@ -32,6 +33,8 @@ body {
 }
 
 .app-shell {
+  min-height: 100vh;
+  height: 100vh;
   min-height: 100dvh;
   height: 100dvh;
   display: grid;
@@ -71,6 +74,7 @@ body {
 .card {
   width: min(100%, 720px);
   height: 100%;
+  max-height: calc(100vh - 20px);
   max-height: calc(100dvh - 20px);
   padding: 26px;
   border-radius: var(--radius);
@@ -351,9 +355,11 @@ p {
 .header-row {
   display: flex;
   flex-wrap: wrap;
+  gap: clamp(8px, 2.2vw, 14px);
   gap: clamp(8px, 2.2cqi, 14px);
   align-items: center;
   justify-content: space-between;
+  padding: clamp(6px, 1.2vw, 10px) clamp(8px, 2vw, 12px);
   padding: clamp(6px, 1.2cqi, 10px) clamp(8px, 2cqi, 12px);
 }
 
@@ -369,6 +375,7 @@ p {
   width: 46px;
   height: 46px;
   border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border: 1px solid color-mix(in srgb, var(--border) 76%, white);
   display: inline-flex;
   align-items: center;
@@ -413,7 +420,9 @@ p {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: clamp(10px, 2.6vw, 18px);
   gap: clamp(10px, 2.6cqi, 18px);
+  padding: clamp(8px, 1.7vw, 11px) clamp(10px, 2.2vw, 14px);
   padding: clamp(8px, 1.7cqi, 11px) clamp(10px, 2.2cqi, 14px);
   border: 1px solid rgba(255,255,255,0.04);
   border-radius: 10px;
@@ -424,6 +433,7 @@ p {
 .header-name,
 .item-name {
   font-weight: 700;
+  font-size: clamp(0.92rem, 2.6vw, 1.08rem);
   font-size: clamp(0.92rem, 2.6cqi, 1.08rem);
   color: var(--text);
 }
@@ -440,6 +450,7 @@ p {
 .item-price {
   margin-top: 2px;
   color: var(--text-secondary);
+  font-size: clamp(0.84rem, 2.2vw, 0.98rem);
   font-size: clamp(0.84rem, 2.2cqi, 0.98rem);
 }
 
@@ -447,11 +458,14 @@ p {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
+  gap: clamp(6px, 2.2vw, 12px);
   gap: clamp(6px, 2.2cqi, 12px);
 }
 
 .qty-btn,
 .addall-btn {
+  width: clamp(36px, 11vw, 68px);
+  height: clamp(36px, 11vw, 68px);
   width: clamp(36px, 11cqi, 68px);
   height: clamp(36px, 11cqi, 68px);
   border: 1px solid rgba(255, 255, 255, 0.082);
@@ -460,6 +474,7 @@ p {
   color: #f8fafc;
   cursor: pointer;
   font-weight: 800;
+  font-size: clamp(1.2rem, 4vw, 1.45rem);
   font-size: clamp(1.2rem, 4cqi, 1.45rem);
   line-height: 1;
   transition: background-color 140ms ease, transform 120ms ease, color 140ms ease;
@@ -478,14 +493,17 @@ p {
 }
 
 .qty-value {
+  min-width: clamp(18px, 5.5vw, 34px);
   min-width: clamp(18px, 5.5cqi, 34px);
   text-align: center;
   font-weight: 800;
+  font-size: clamp(0.94rem, 2.8vw, 1.18rem);
   font-size: clamp(0.94rem, 2.8cqi, 1.18rem);
 }
 
 .summary {
   margin-top: 14px;
+  padding: clamp(10px, 2.2vw, 14px);
   padding: clamp(10px, 2.2cqi, 14px);
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.04);
@@ -505,6 +523,7 @@ p {
 
 .summary-row.total {
   font-weight: 800;
+  font-size: clamp(0.98rem, 2.6vw, 1.14rem);
   font-size: clamp(0.98rem, 2.6cqi, 1.14rem);
 }
 
@@ -515,11 +534,13 @@ p {
 }
 
 #summary .summary-row.total span {
+  font-size: clamp(1.06rem, 3.1vw, 1.28rem);
   font-size: clamp(1.06rem, 3.1cqi, 1.28rem);
   font-weight: 800;
 }
 
 #summary #total-price {
+  font-size: clamp(1.44rem, 4.4vw, 1.92rem);
   font-size: clamp(1.44rem, 4.4cqi, 1.92rem);
   font-weight: 900;
   line-height: 1;
@@ -1074,6 +1095,7 @@ select {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
+  outline: 2px solid rgba(255, 122, 26, 0.6);
   outline: 2px solid color-mix(in srgb, var(--primary) 60%, white);
   outline-offset: 2px;
 }
@@ -1092,6 +1114,7 @@ select:focus-visible {
   .card {
     width: 100%;
     max-width: 100%;
+    max-height: calc(100vh - 16px);
     max-height: calc(100dvh - 16px);
     border-radius: 18px;
     padding: 18px;
@@ -1286,14 +1309,20 @@ select:focus-visible {
 
   .qty-btn,
   .addall-btn {
+    width: clamp(34px, 9vw, 54px);
+    height: clamp(34px, 9vw, 54px);
     width: clamp(34px, 9cqi, 54px);
     height: clamp(34px, 9cqi, 54px);
+    border-radius: clamp(10px, 2.2vw, 13px);
     border-radius: clamp(10px, 2.2cqi, 13px);
+    font-size: clamp(1rem, 2.8vw, 1.22rem);
     font-size: clamp(1rem, 2.8cqi, 1.22rem);
   }
 
   .qty-value {
+    min-width: clamp(22px, 5vw, 30px);
     min-width: clamp(22px, 5cqi, 30px);
+    font-size: clamp(1rem, 2.5vw, 1.14rem);
     font-size: clamp(1rem, 2.5cqi, 1.14rem);
   }
 
@@ -1317,6 +1346,7 @@ select:focus-visible {
   }
 
   .card {
+    max-height: calc(100vh - 12px);
     max-height: calc(100dvh - 12px);
     padding: 16px;
     border-radius: 16px;
@@ -1374,14 +1404,19 @@ select:focus-visible {
 
   .qty-btn,
   .addall-btn {
+    width: clamp(36px, 8.2vw, 48px);
+    height: clamp(36px, 8.2vw, 48px);
     width: clamp(36px, 8.2cqi, 48px);
     height: clamp(36px, 8.2cqi, 48px);
+    font-size: clamp(1rem, 2.6vw, 1.12rem);
     font-size: clamp(1rem, 2.6cqi, 1.12rem);
     flex-shrink: 0;
   }
 
   .qty-value {
+    min-width: clamp(24px, 4.6vw, 28px);
     min-width: clamp(24px, 4.6cqi, 28px);
+    font-size: clamp(1rem, 2.3vw, 1.05rem);
     font-size: clamp(1rem, 2.3cqi, 1.05rem);
     flex-shrink: 0;
   }
