@@ -88,7 +88,6 @@ body {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
   margin-bottom: 14px;
 }
 
@@ -96,6 +95,7 @@ body {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
+  margin-right: 12px;
 }
 
 h1 {
@@ -280,7 +280,6 @@ p {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
   margin: 6px 0 12px;
 }
 
@@ -289,7 +288,7 @@ p {
 }
 
 #sync-status {
-  margin: 0;
+  margin: 0 0 0 10px;
   width: 11px;
   height: 11px;
   flex: 0 0 auto;
@@ -304,7 +303,6 @@ p {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
   min-width: 220px;
   max-width: 100%;
   padding: 12px 16px;
@@ -322,6 +320,7 @@ p {
   border-radius: 999px;
   display: inline-block;
   background: var(--muted);
+  margin-right: 10px;
 }
 
 #sales-open-indicator.open { color: var(--text); background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.3); }
@@ -355,11 +354,11 @@ p {
 .header-row {
   display: flex;
   flex-wrap: wrap;
-  gap: clamp(8px, 2.2vw, 14px);
+  gap: 10px;
   gap: clamp(8px, 2.2cqi, 14px);
   align-items: center;
   justify-content: space-between;
-  padding: clamp(6px, 1.2vw, 10px) clamp(8px, 2vw, 12px);
+  padding: 8px 10px;
   padding: clamp(6px, 1.2cqi, 10px) clamp(8px, 2cqi, 12px);
 }
 
@@ -420,9 +419,9 @@ p {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: clamp(10px, 2.6vw, 18px);
+  gap: 12px;
   gap: clamp(10px, 2.6cqi, 18px);
-  padding: clamp(8px, 1.7vw, 11px) clamp(10px, 2.2vw, 14px);
+  padding: 9px 12px;
   padding: clamp(8px, 1.7cqi, 11px) clamp(10px, 2.2cqi, 14px);
   border: 1px solid rgba(255,255,255,0.04);
   border-radius: 10px;
@@ -433,7 +432,7 @@ p {
 .header-name,
 .item-name {
   font-weight: 700;
-  font-size: clamp(0.92rem, 2.6vw, 1.08rem);
+  font-size: 1rem;
   font-size: clamp(0.92rem, 2.6cqi, 1.08rem);
   color: var(--text);
 }
@@ -450,7 +449,7 @@ p {
 .item-price {
   margin-top: 2px;
   color: var(--text-secondary);
-  font-size: clamp(0.84rem, 2.2vw, 0.98rem);
+  font-size: 0.9rem;
   font-size: clamp(0.84rem, 2.2cqi, 0.98rem);
 }
 
@@ -458,14 +457,18 @@ p {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: clamp(6px, 2.2vw, 12px);
+  gap: 8px;
   gap: clamp(6px, 2.2cqi, 12px);
+}
+
+.qty-control > * + * {
+  margin-left: 8px;
 }
 
 .qty-btn,
 .addall-btn {
-  width: clamp(36px, 11vw, 68px);
-  height: clamp(36px, 11vw, 68px);
+  width: 44px;
+  height: 44px;
   width: clamp(36px, 11cqi, 68px);
   height: clamp(36px, 11cqi, 68px);
   border: 1px solid rgba(255, 255, 255, 0.082);
@@ -474,7 +477,7 @@ p {
   color: #f8fafc;
   cursor: pointer;
   font-weight: 800;
-  font-size: clamp(1.2rem, 4vw, 1.45rem);
+  font-size: 1.3rem;
   font-size: clamp(1.2rem, 4cqi, 1.45rem);
   line-height: 1;
   transition: background-color 140ms ease, transform 120ms ease, color 140ms ease;
@@ -493,17 +496,17 @@ p {
 }
 
 .qty-value {
-  min-width: clamp(18px, 5.5vw, 34px);
+  min-width: 28px;
   min-width: clamp(18px, 5.5cqi, 34px);
   text-align: center;
   font-weight: 800;
-  font-size: clamp(0.94rem, 2.8vw, 1.18rem);
+  font-size: 1rem;
   font-size: clamp(0.94rem, 2.8cqi, 1.18rem);
 }
 
 .summary {
   margin-top: 14px;
-  padding: clamp(10px, 2.2vw, 14px);
+  padding: 12px;
   padding: clamp(10px, 2.2cqi, 14px);
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.04);
@@ -523,7 +526,7 @@ p {
 
 .summary-row.total {
   font-weight: 800;
-  font-size: clamp(0.98rem, 2.6vw, 1.14rem);
+  font-size: 1rem;
   font-size: clamp(0.98rem, 2.6cqi, 1.14rem);
 }
 
@@ -534,13 +537,13 @@ p {
 }
 
 #summary .summary-row.total span {
-  font-size: clamp(1.06rem, 3.1vw, 1.28rem);
+  font-size: 1.1rem;
   font-size: clamp(1.06rem, 3.1cqi, 1.28rem);
   font-weight: 800;
 }
 
 #summary #total-price {
-  font-size: clamp(1.44rem, 4.4vw, 1.92rem);
+  font-size: 1.6rem;
   font-size: clamp(1.44rem, 4.4cqi, 1.92rem);
   font-weight: 900;
   line-height: 1;
@@ -909,7 +912,9 @@ p {
 }
 
 #reset-btn {
+  font-size: 1.1rem;
   font-size: clamp(1.02rem, 3cqi, 1.25rem);
+  padding: 16px 12px;
   padding: clamp(14px, 2.8cqi, 18px) 12px;
   color: #bac7b1;
 }
