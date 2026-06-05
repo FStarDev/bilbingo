@@ -476,6 +476,9 @@ p {
   font-size: 1.3rem;
   font-size: clamp(1.2rem, 4cqi, 1.45rem);
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: background-color 140ms ease, transform 120ms ease, color 140ms ease;
   box-shadow: none;
 }
@@ -1444,6 +1447,13 @@ select:focus-visible {
     width: 52px !important;
     height: 52px !important;
     font-size: 1.4rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .addall-btn {
+    margin-left: 12px !important;
   }
 
   .qty-value {
