@@ -73,6 +73,13 @@ type AdminLoginResponse = {
 };
 
 type SalesLogResponse = {
+  scope?: string;
+  period?: { seasonYear: number; seasonWeek: number };
+  cashierNumber?: number | null;
+  totalCustomers?: number;
+  totalRevenue?: number;
+  products?: Array<{ id: string; name: string; quantity: number; amount: number }>;
+  cashiers?: Array<{ cashierNumber: number; customers: number; revenue: number }>;
   sales: Array<{
     id: string;
     salespersonName: string;
@@ -171,6 +178,8 @@ const adminOccasionMetaEl = document.getElementById("admin-occasion-meta");
 const logsTitleEl = document.getElementById("logs-title");
 let todayAdminOccasion: OccasionInfo | null = null;
 const adminOccasionById = new Map<string, OccasionInfo>();
+let adminLogsOffset = 0;
+const adminLogsLimitDefault = 100;
 
 const logsListEl = document.getElementById("logs-list");
 const clearLogBtn = document.getElementById("clear-log-btn") as HTMLButtonElement | null;
@@ -953,6 +962,30 @@ function renderLogsFromEntries(logs: SalesLogEntry[]): void {
 
       logsListEl.appendChild(div);
     });
+
+      // Render 'Load more' button if the last server page looked full
+      const lastResponse: SalesLogResponse | undefined = (loadAdminLogs as any)._lastResponse;
+      const existingBtn = document.getElementById("logs-load-more-btn") as HTMLButtonElement | null;
+      const shouldShowMore = Boolean(lastResponse && Array.isArray(lastResponse.sales) && lastResponse.sales.length === adminLogsLimitDefault);
+      if (shouldShowMore) {
+        if (!existingBtn) {
+          const btn = document.createElement("button");
+          btn.id = "logs-load-more-btn";
+          btn.className = "load-more-btn";
+          btn.type = "button";
+          btn.textContent = "Ladda fler";
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            btn.textContent = "Laddar...";
+            await loadMoreAdminLogs();
+            btn.disabled = false;
+            btn.textContent = "Ladda fler";
+          });
+          logsListEl.appendChild(btn);
+        }
+      } else if (existingBtn) {
+        existingBtn.remove();
+      }
 }
 
 function handleAdminUnauthorized(): void {
@@ -976,11 +1009,21 @@ async function loadAdminLogs(session: SalesSession, scope = "current_occasion", 
     const params = new URLSearchParams();
     params.set("scope", scope);
     params.set("cashierNumber", "all");
-    params.set("limit", "500");
+    params.set("limit", String(adminLogsLimitDefault));
+    params.set("offset", String(adminLogsOffset));
     if (occasionId) params.set("occasionId", occasionId);
     const response = await apiRequest<SalesLogResponse>(`/sales-log?${params.toString()}`, undefined, session.authToken);
     const serverLogs = mapServerLogs(response);
-    saveServerSalesCache(serverLogs);
+    // Save or append to server cache depending on offset
+    if (adminLogsOffset === 0) {
+      saveServerSalesCache(serverLogs);
+    } else {
+      const existing = loadServerSalesCache();
+      const merged = mergeLogs(existing, serverLogs);
+      saveServerSalesCache(merged);
+    }
+    // Store the last server response so callers can also read aggregated totals.
+    (loadAdminLogs as any)._lastResponse = response;
     return mergeLogs(serverLogs, getPendingEntries());
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
@@ -988,6 +1031,99 @@ async function loadAdminLogs(session: SalesSession, scope = "current_occasion", 
       return [];
     }
     return mergeLogs(loadServerSalesCache(), getPendingEntries());
+  }
+}
+
+async function loadMoreAdminLogs(): Promise<void> {
+  if (!activeSession || activeSession.role !== "admin" || !activeSession.authToken) return;
+  adminLogsOffset += adminLogsLimitDefault;
+  try {
+    await loadAdminLogs(activeSession, getAdminStatsSelection().scope, getAdminStatsSelection().occasionId);
+    const scopeLogs = mergeLogs(loadServerSalesCache(), getPendingEntries());
+    const visibleLogs = adminCashierFilter === "all" ? scopeLogs : scopeLogs.filter((entry) => entry.cashierNumber === Number(adminCashierFilter));
+    renderLogsFromEntries(visibleLogs);
+    // Re-render totals using last response logic (merge pending entries)
+    const lastResponse: SalesLogResponse | undefined = (loadAdminLogs as any)._lastResponse;
+    if (lastResponse) {
+      const serverSales = mapServerLogs(lastResponse);
+      const serverIds = new Set(serverSales.map((s) => s.id));
+      const pendingFromScope = scopeLogs.filter((entry) => !serverIds.has(entry.id));
+      const pendingStats = aggregateLogs(pendingFromScope);
+
+      const serverStats = {
+        totalCustomers: lastResponse.totalCustomers ?? 0,
+        totalRevenue: lastResponse.totalRevenue ?? 0,
+        products: responseProductsToTotals(lastResponse.products ?? []),
+      };
+
+      const merged = mergeStats(serverStats, pendingStats);
+
+      if (adminTotalCustomersEl) adminTotalCustomersEl.textContent = String(merged.totalCustomers);
+      if (adminTotalRevenueEl) adminTotalRevenueEl.textContent = `${merged.totalRevenue} kr`;
+
+      if (adminProductTotalsEl) {
+        adminProductTotalsEl.innerHTML = "";
+        for (const id of Object.keys(merged.products) as ItemId[]) {
+          const row = document.createElement("div");
+          row.className = "summary-row";
+          row.innerHTML = `<span>${findItem(id).name}</span><strong>${merged.products[id].qty} st - ${merged.products[id].amount} kr</strong>`;
+          adminProductTotalsEl.appendChild(row);
+        }
+      }
+
+      if (adminCashierBreakdownEl) {
+        adminCashierBreakdownEl.innerHTML = "";
+        const serverCashiers = lastResponse.cashiers ?? [];
+        const cashierMap = new Map<number, { customers: number; revenue: number }>();
+        serverCashiers.forEach((c) => cashierMap.set(Number(c.cashierNumber), { customers: Number(c.customers), revenue: Number(c.revenue) }));
+        pendingFromScope.forEach((entry) => {
+          const cur = cashierMap.get(entry.cashierNumber) ?? { customers: 0, revenue: 0 };
+          cur.customers += 1;
+          cur.revenue += entry.totalPrice;
+          cashierMap.set(entry.cashierNumber, cur);
+        });
+
+        const all = Array.from(cashierMap.values()).reduce((acc, c) => ({ customers: acc.customers + c.customers, revenue: acc.revenue + c.revenue }), { customers: 0, revenue: 0 });
+        const allRow = document.createElement("div");
+        allRow.className = "cashier-row";
+        allRow.setAttribute("role", "button");
+        allRow.tabIndex = 0;
+        allRow.setAttribute("aria-label", "Visa statistik for alla kassor");
+        const isAllActive = adminCashierFilter === "all";
+        if (isAllActive) allRow.classList.add("is-active");
+        allRow.innerHTML = `
+          <div class="cashier-row-head">
+            <strong>Alla kassor</strong>
+            ${isAllActive ? "<span class=\"cashier-selected-badge\">Vald</span>" : ""}
+          </div>
+          <div>${all.customers} kunder - ${all.revenue} kr</div>
+        `;
+        allRow.addEventListener("click", () => setAdminCashierFilter("all"));
+        adminCashierBreakdownEl.appendChild(allRow);
+
+        [1, 2, 3].forEach((cashierNumber) => {
+          const cur = cashierMap.get(cashierNumber) ?? { customers: 0, revenue: 0 };
+          const row = document.createElement("div");
+          row.className = "cashier-row";
+          row.setAttribute("role", "button");
+          row.tabIndex = 0;
+          row.setAttribute("aria-label", `Visa statistik for kassa ${cashierNumber}`);
+          const isCashierActive = adminCashierFilter === String(cashierNumber);
+          if (isCashierActive) row.classList.add("is-active");
+          row.innerHTML = `
+            <div class="cashier-row-head">
+              <strong>Kassa ${cashierNumber}</strong>
+              ${isCashierActive ? "<span class=\"cashier-selected-badge\">Vald</span>" : ""}
+            </div>
+            <div>${cur.customers} kunder - ${cur.revenue} kr</div>
+          `;
+          row.addEventListener("click", () => setAdminCashierFilter(String(cashierNumber) as AdminCashierFilter));
+          adminCashierBreakdownEl.appendChild(row);
+        });
+      }
+    }
+  } catch (err) {
+    // ignore
   }
 }
 
@@ -1086,12 +1222,99 @@ async function refreshAdminData(): Promise<void> {
     const session = activeSession;
 
     await populateAdminScopeOptions();
+    adminLogsOffset = 0;
     const { scope, occasionId } = getAdminStatsSelection();
     const scopeLogs = await loadAdminLogs(session, scope, occasionId);
+    const lastResponse: SalesLogResponse | undefined = (loadAdminLogs as any)._lastResponse;
     const visibleLogs = adminCashierFilter === "all"
       ? scopeLogs
       : scopeLogs.filter((entry) => entry.cashierNumber === Number(adminCashierFilter));
-    renderAdminStatsFromEntries(visibleLogs, scopeLogs);
+
+    // If server returned aggregated totals with the paginated sales, prefer those totals
+    // but merge any pending (unsynced) entries that were appended client-side.
+    if (lastResponse && typeof lastResponse.totalCustomers === "number") {
+      // Reconstruct server-side sales list and determine which entries are pending
+      const serverSales = mapServerLogs(lastResponse);
+      const serverIds = new Set(serverSales.map((s) => s.id));
+      const pendingFromScope = scopeLogs.filter((entry) => !serverIds.has(entry.id));
+      const pendingStats = aggregateLogs(pendingFromScope);
+
+      const serverStats = {
+        totalCustomers: lastResponse.totalCustomers ?? 0,
+        totalRevenue: lastResponse.totalRevenue ?? 0,
+        products: responseProductsToTotals(lastResponse.products ?? []),
+      };
+
+      const merged = mergeStats(serverStats, pendingStats);
+
+      if (adminTotalCustomersEl) adminTotalCustomersEl.textContent = String(merged.totalCustomers);
+      if (adminTotalRevenueEl) adminTotalRevenueEl.textContent = `${merged.totalRevenue} kr`;
+
+      if (adminProductTotalsEl) {
+        adminProductTotalsEl.innerHTML = "";
+        for (const id of Object.keys(merged.products) as ItemId[]) {
+          const row = document.createElement("div");
+          row.className = "summary-row";
+          row.innerHTML = `<span>${findItem(id).name}</span><strong>${merged.products[id].qty} st - ${merged.products[id].amount} kr</strong>`;
+          adminProductTotalsEl.appendChild(row);
+        }
+      }
+
+      if (adminCashierBreakdownEl) {
+        adminCashierBreakdownEl.innerHTML = "";
+        // Build 'All' summary using merged totals per-cashier where possible
+        const serverCashiers = lastResponse.cashiers ?? [];
+        const cashierMap = new Map<number, { customers: number; revenue: number }>();
+        serverCashiers.forEach((c) => cashierMap.set(Number(c.cashierNumber), { customers: Number(c.customers), revenue: Number(c.revenue) }));
+        // Add pending entries per cashier
+        pendingFromScope.forEach((entry) => {
+          const cur = cashierMap.get(entry.cashierNumber) ?? { customers: 0, revenue: 0 };
+          cur.customers += 1;
+          cur.revenue += entry.totalPrice;
+          cashierMap.set(entry.cashierNumber, cur);
+        });
+
+        const all = Array.from(cashierMap.values()).reduce((acc, c) => ({ customers: acc.customers + c.customers, revenue: acc.revenue + c.revenue }), { customers: 0, revenue: 0 });
+        const allRow = document.createElement("div");
+        allRow.className = "cashier-row";
+        allRow.setAttribute("role", "button");
+        allRow.tabIndex = 0;
+        allRow.setAttribute("aria-label", "Visa statistik for alla kassor");
+        const isAllActive = adminCashierFilter === "all";
+        if (isAllActive) allRow.classList.add("is-active");
+        allRow.innerHTML = `
+          <div class="cashier-row-head">
+            <strong>Alla kassor</strong>
+            ${isAllActive ? "<span class=\"cashier-selected-badge\">Vald</span>" : ""}
+          </div>
+          <div>${all.customers} kunder - ${all.revenue} kr</div>
+        `;
+        allRow.addEventListener("click", () => setAdminCashierFilter("all"));
+        adminCashierBreakdownEl.appendChild(allRow);
+
+        [1, 2, 3].forEach((cashierNumber) => {
+          const cur = cashierMap.get(cashierNumber) ?? { customers: 0, revenue: 0 };
+          const row = document.createElement("div");
+          row.className = "cashier-row";
+          row.setAttribute("role", "button");
+          row.tabIndex = 0;
+          row.setAttribute("aria-label", `Visa statistik for kassa ${cashierNumber}`);
+          const isCashierActive = adminCashierFilter === String(cashierNumber);
+          if (isCashierActive) row.classList.add("is-active");
+          row.innerHTML = `
+            <div class="cashier-row-head">
+              <strong>Kassa ${cashierNumber}</strong>
+              ${isCashierActive ? "<span class=\"cashier-selected-badge\">Vald</span>" : ""}
+            </div>
+            <div>${cur.customers} kunder - ${cur.revenue} kr</div>
+          `;
+          row.addEventListener("click", () => setAdminCashierFilter(String(cashierNumber) as AdminCashierFilter));
+          adminCashierBreakdownEl.appendChild(row);
+        });
+      }
+    } else {
+      renderAdminStatsFromEntries(visibleLogs, scopeLogs);
+    }
     renderLogsFromEntries(visibleLogs);
     await loadAndRenderTodayOccasion();
   } finally {

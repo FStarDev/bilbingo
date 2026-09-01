@@ -858,6 +858,7 @@ async function main() {
     const scope = parseScope(request.query.scope);
     const cashierNumber = parseCashierNumber(request.query.cashierNumber);
     const limit = Math.min(500, Math.max(1, Number(request.query.limit ?? 100)));
+    const offset = Math.max(0, Number(request.query.offset ?? 0));
     const occasionId = typeof request.query.occasionId === "string" ? request.query.occasionId : undefined;
     const period = getCurrentPeriod();
     const filters = buildSalesWhere(scope, cashierNumber, period, occasionId);
@@ -886,12 +887,14 @@ async function main() {
         ${filters.whereSql}
         ORDER BY s.sale_timestamp DESC
         LIMIT ?
+        OFFSET ?
       `,
       ...filters.params,
       limit,
+      offset,
     );
 
-    const salesWithItems = await Promise.all(
+      const salesWithItems = await Promise.all(
       sales.map(async (sale) => {
         const items = await db.all<Array<{
           id: string;
@@ -925,6 +928,43 @@ async function main() {
       scope,
       period,
       cashierNumber,
+      // Aggregated totals for the full scope (not limited by the paginated sales list)
+      totalCustomers: (await db.get<{ totalCustomers: number }>(
+        `SELECT COUNT(*) AS totalCustomers FROM sales s ${filters.whereSql}`,
+        ...filters.params,
+      ))?.totalCustomers ?? 0,
+      totalRevenue: (await db.get<{ totalRevenue: number }>(
+        `SELECT COALESCE(SUM(s.total_price), 0) AS totalRevenue FROM sales s ${filters.whereSql}`,
+        ...filters.params,
+      ))?.totalRevenue ?? 0,
+      products: await db.all<ProductSummary[]>(
+        `
+          SELECT
+            si.item_id AS id,
+            si.item_name AS name,
+            COALESCE(SUM(si.quantity), 0) AS quantity,
+            COALESCE(SUM(si.amount), 0) AS amount
+          FROM sale_items si
+          JOIN sales s ON s.id = si.sale_id
+          ${filters.whereSql}
+          GROUP BY si.item_id, si.item_name
+          ORDER BY si.item_name
+        `,
+        ...filters.params,
+      ),
+      cashiers: await db.all<Array<{ cashierNumber: number; customers: number; revenue: number }>>(
+        `
+          SELECT
+            s.cashier_number AS cashierNumber,
+            COUNT(*) AS customers,
+            COALESCE(SUM(s.total_price), 0) AS revenue
+          FROM sales s
+          ${filters.whereSql}
+          GROUP BY s.cashier_number
+          ORDER BY s.cashier_number
+        `,
+        ...filters.params,
+      ),
       sales: salesWithItems,
     });
   });
